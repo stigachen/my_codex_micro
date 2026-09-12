@@ -16,9 +16,10 @@ VERSION="${VERSION:-$(sed -n 's/^let version = "\(.*\)"/\1/p' Sources/MicroKeys/
 IDENTITY="${SIGN_IDENTITY:--}"
 OUT="build/MicroKeys.app"
 
-echo "▸ swift build -c release"
-swift build -c release 2>&1 | grep -v "ld: warning: search path" || true
-BIN="$(swift build -c release --show-bin-path)/MicroKeys"
+ARCHS="${ARCHS:---arch arm64 --arch x86_64}"
+echo "▸ swift build -c release $ARCHS"
+swift build -c release $ARCHS 2>&1 | grep -v "ld: warning: search path" || true
+BIN="$(swift build -c release $ARCHS --show-bin-path)/MicroKeys"
 [ -x "$BIN" ] || { echo "构建失败：找不到 $BIN" >&2; exit 1; }
 
 echo "▸ assembling $OUT"
