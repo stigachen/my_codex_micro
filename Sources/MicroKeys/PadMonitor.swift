@@ -21,8 +21,14 @@ enum PadStatus: Equatable {
 /// Matching is on VID/PID only; product strings and collection counts differ
 /// between transports.
 final class PadMonitor {
+    /// Espressif's USB vendor id; Work Louder's ESP32-based pads enumerate under it.
     static let vendorID = 0x303A
+    /// The Codex Micro. Other Work Louder pads on the same firmware family
+    /// (Creator Micro 2) are expected to differ only in product id, so any
+    /// device under the same vendor id whose manufacturer string is
+    /// "Work Louder" is accepted too.
     static let productID = 0x8360
+    static let manufacturer = "work louder"
     private static let reportBufferSize = 64
 
     var onEvent: ((PadEvent) -> Void)?
@@ -56,10 +62,7 @@ final class PadMonitor {
     func start() {
         stop()
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
-        let matching: [String: Any] = [
-            kIOHIDVendorIDKey as String: Self.vendorID,
-            kIOHIDProductIDKey as String: Self.productID,
-        ]
+        let matching: [String: Any] = [kIOHIDVendorIDKey as String: Self.vendorID]
         IOHIDManagerSetDeviceMatching(manager, matching as CFDictionary)
         let context = Unmanaged.passUnretained(self).toOpaque()
         IOHIDManagerRegisterDeviceMatchingCallback(manager, { context, _, _, device in
@@ -94,7 +97,14 @@ final class PadMonitor {
         status = .disconnected
     }
 
+    static func isSupported(_ device: IOHIDDevice) -> Bool {
+        let pid = (IOHIDDeviceGetProperty(device, kIOHIDProductIDKey as CFString) as? NSNumber)?.intValue ?? 0
+        let mfr = (IOHIDDeviceGetProperty(device, kIOHIDManufacturerKey as CFString) as? String ?? "").lowercased()
+        return pid == productID || mfr.contains(manufacturer)
+    }
+
     private func deviceAdded(_ device: IOHIDDevice) {
+        guard Self.isSupported(device) else { return }
         let transport = IOHIDDeviceGetProperty(device, kIOHIDTransportKey as CFString) as? String ?? "unknown"
         let entry = Entry(device: device, transport: transport)
         entries[ObjectIdentifier(device)] = entry

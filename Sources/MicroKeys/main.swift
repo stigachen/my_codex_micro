@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import MicroKeysCore
 
-let version = "0.2.0"
+let version = "0.2.1"
 LanguagePreference.apply()
 
 /// Command-line helpers, for checking things without touching the pad.
@@ -56,6 +56,12 @@ func runCLI(_ args: [String]) -> Int32? {
             return 1
         }
 
+    case "--detect":
+        // List every HID device that could be a Work Louder pad, with the
+        // facts MicroKeys needs: ids, transport, and whether the vendor
+        // channel (usage page 0xFF00) is in the report descriptor.
+        return DeviceDetector.run()
+
     case "--dump-events":
         // Print every keyboard event the system delivers, with the fields an
         // app might use to tell hardware from synthetic input. Compare a real
@@ -71,6 +77,7 @@ func runCLI(_ args: [String]) -> Int32? {
           --check-config [路径]           校验配置文件并列出绑定
           --test-shortcut <快捷键> [毫秒]  合成一次快捷键，用来验证目标应用是否响应
           --dump-events [秒数]            打印这段时间内系统收到的所有键盘事件（诊断用）
+          --detect                        列出接在这台 Mac 上的 Work Louder / 乐鑫 HID 设备
           --version
         环境变量 MICROKEYS_CONFIG 可指定配置文件路径（默认 ~/.config/microkeys/config.json）。
         """, """
@@ -80,6 +87,7 @@ func runCLI(_ args: [String]) -> Int32? {
           --check-config [path]            validate the config and list bindings
           --test-shortcut <chord> [ms]     synthesize one shortcut to see if the target app reacts
           --dump-events [seconds]          print every keyboard event the system delivers (diagnostic)
+          --detect                         list Work Louder / Espressif HID devices attached to this Mac
           --version
         MICROKEYS_CONFIG overrides the config path (default ~/.config/microkeys/config.json).
         """))

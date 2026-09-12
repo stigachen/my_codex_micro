@@ -67,6 +67,7 @@ SIGN_IDENTITY="MicroKeys Dev" make app
 MicroKeys --check-config                      # 校验配置并列出绑定
 MicroKeys --test-shortcut "rctrl+rshift" 800  # 3 秒后合成一次快捷键，验证目标应用是否响应
 MicroKeys --dump-events 20                    # 打印 20 秒内系统投递的键盘事件，诊断用
+MicroKeys --detect                            # 列出接在本机的 Work Louder 键盘及其通道信息
 MicroKeys --version
 ```
 
@@ -77,6 +78,19 @@ MicroKeys --version
 ChatGPT 仍会响应你映射的键（出厂 ACT 键分别是快速模式 / 同意 / 拒绝 / 分叉 / 按住说话 / 发送）。
 要让某个键只属于 MicroKeys，在 ChatGPT 的 Codex Micro 设置里把该槽位换成空白键帽 EMPT1～EMPT5 且不绑命令。
 细节见 [docs/CONFIG.md 第 6 节](docs/CONFIG.md#6-和-chatgpt--codex-桌面应用共存)。
+
+## 其他 Work Louder 键盘（Creator Micro 2）
+
+Codex Micro 就是 Work Louder Creator Micro 2 的机身加 Codex 固件，官方说 CM2 同样用 Input 软件配置而不是 QMK/VIA，
+大概率走同一条厂商 HID 通道，但**没有实机验证过**。MicroKeys 会接管任何乐鑫 VID（0x303A）下厂商名为 Work Louder 的设备。
+插上后先运行：
+
+```sh
+MicroKeys --detect
+```
+
+它会列出设备的 VID/PID、连接方式，以及报告描述符里有没有厂商通道（0xFF00）。有厂商通道就值得一试；
+按键后菜单里「最近按键」有显示，就是兼容的。
 
 ## 已知限制
 
