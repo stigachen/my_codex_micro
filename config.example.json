@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "_comment": "MicroKeys 配置文件。保存后自动生效，无需重启。完整说明见 docs/CONFIG.md。",
+
+  "options": {
+    "key_interval_ms": 0
+  },
+
+  "bindings": {
+    "MIC": {
+      "mode": "hold",
+      "keys": "rctrl+rshift",
+      "_comment": "语音键：按住期间一直按住 右Ctrl + 右Shift，松开即松开"
+    }
+  }
+}
