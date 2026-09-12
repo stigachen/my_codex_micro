@@ -39,7 +39,7 @@ MicroKeys 用一个 JSON 文件描述「Codex Micro 上的哪个键 → 系统�
   "_comment": "任意说明文字，以下划线开头的字段都会被忽略",
 
   "options": {
-    "key_interval_ms": 0
+    "key_interval_ms": 30
   },
 
   "bindings": {
@@ -52,7 +52,7 @@ MicroKeys 用一个 JSON 文件描述「Codex Micro 上的哪个键 → 系统�
 | 字段 | 必填 | 说明 |
 |---|---|---|
 | `version` | 否 | 目前只能是 `1`，省略也可以 |
-| `options.key_interval_ms` | 否 | 同一个快捷键内部各个按下/抬起事件之间的间隔，毫秒，默认 `0`。个别应用丢事件时可以调到 `5`～`20` |
+| `options.key_interval_ms` | 否 | 同一个快捷键内部各个按下/抬起事件之间的间隔，毫秒，默认 `30`。**不要设成 0**：Typeless 等听写软件会忽略事件紧挨着到达的组合键，实测 30 可用。想降低延迟可以试 10～20 |
 | `bindings` | 是 | 按键 id 到快捷键的映射，可以为空 |
 | 任何以 `_` 开头的字段 | 否 | 注释，随便写 |
 
@@ -178,7 +178,7 @@ Agent 键和旋钮在 ChatGPT 里没有「空白」选项，把它们映射成�
   "version": 1,
   "_comment": "语音键给听写软件，其余几个键做常用快捷键",
 
-  "options": { "key_interval_ms": 0 },
+  "options": { "key_interval_ms": 30 },
 
   "bindings": {
     "MIC":     { "mode": "hold", "keys": "rctrl+rshift", "_comment": "按住说话" },
@@ -205,13 +205,31 @@ Agent 键和旋钮在 ChatGPT 里没有「空白」选项，把它们映射成�
    ```sh
    /Applications/MicroKeys.app/Contents/MacOS/MicroKeys --test-shortcut "rctrl+rshift" 800
    ```
+4. 目标应用收不到时，打印系统实际投递的键盘事件做对比。20 秒内先按一次真实键盘上的快捷键，再按一次映射的键：
+   ```sh
+   /Applications/MicroKeys.app/Contents/MacOS/MicroKeys --dump-events 20
+   ```
+   真实按键 `srcPid=0`；两组的 keyCode、flags 应一致。第一次运行会向终端索要「输入监控」权限。
+
+### Typeless 实测可用的配置
+
+Typeless 是「按一下开始、再按一下结束」的切换式，用 `tap` 模式；并且必须保留事件间隔：
+
+```json
+{
+  "options": { "key_interval_ms": 30 },
+  "bindings": { "MIC": { "mode": "tap", "keys": "ctrl+option+d" } }
+}
+```
+
+在 Typeless 设置里给 Dictate 点「Add another」录入同一个组合即可，原来的 Fn 不受影响。
 
 ## 9. 常见问题
 
 | 现象 | 原因 / 处理 |
 |---|---|
 | 菜单显示「❌ 输入监控权限未授予」 | 系统设置 → 隐私与安全性 → 输入监控，打开 MicroKeys 的开关。授予后会自动重连，不用重启 |
-| 键按了，「最近按键」有显示，但目标应用没反应 | 缺辅助功能权限：系统设置 → 隐私与安全性 → 辅助功能。或者目标应用不接受合成按键（极少数用底层 HID 读键盘的软件） |
+| 键按了，「最近按键」有显示，但目标应用没反应 | 先确认 `options.key_interval_ms` 不是 0（Typeless 需要 ≥ 30）。再查辅助功能权限：系统设置 → 隐私与安全性 → 辅助功能。仍不行可用 `--dump-events` 对比真实按键和合成按键的字段，见第 8 节 |
 | 「最近按键」什么都不显示 | 键盘没连上，或者输入监控权限没给。USB 和蓝牙都支持，两者都连着时走 USB |
 | 修改配置后没生效 | 看菜单里有没有「配置错误」。也可以手动点「重新加载配置」 |
 | 重新编译后权限又要重新给 | 用了临时签名（ad-hoc）。参考 README 用自签名证书签名，权限就能跨版本保留 |

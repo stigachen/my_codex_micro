@@ -3,7 +3,7 @@
   "_comment": "MicroKeys 配置文件。保存后自动生效，无需重启。完整说明见 docs/CONFIG.md。",
 
   "options": {
-    "key_interval_ms": 0
+    "key_interval_ms": 30
   },
 
   "bindings": {

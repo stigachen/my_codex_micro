@@ -22,8 +22,9 @@ public struct Binding: Equatable {
 
 public struct Options: Equatable {
     /// Pause between the individual key-down / key-up events of one shortcut.
-    /// 0 is fine for almost everything; raise it if a target app drops events.
-    public var keyIntervalMs: Int = 0
+    /// 30 ms is a safe default: some apps (Typeless, for one) ignore a chord whose
+    /// events arrive back to back. Lower it if you want less latency.
+    public var keyIntervalMs: Int = 30
 
     public init() {}
 }
@@ -144,7 +145,7 @@ public struct Config: Equatable {
       "_comment": "MicroKeys 配置文件。保存后自动生效，无需重启。完整说明见 docs/CONFIG.md。",
 
       "options": {
-        "key_interval_ms": 0
+        "key_interval_ms": 30
       },
 
       "bindings": {
