@@ -54,6 +54,32 @@ macOS 把权限绑定在应用的代码签名上。临时签名（ad-hoc）每�
 SIGN_IDENTITY="MicroKeys Dev" make app
 ```
 
+私钥只在建证书的这台 Mac 上。换机器构建要先在钥匙串访问里把证书连同私钥导出为 `.p12` 带过去，否则签名身份会变。
+
+## 发布给别人
+
+```sh
+SIGN_IDENTITY="MicroKeys Dev" make release
+```
+
+产物在 `dist/`：`MicroKeys-<版本>.dmg`、同内容的 `.zip`，以及 `SHA256SUMS.txt`。应用用指定证书签名并开启 hardened runtime。
+
+**自签名证书**能让权限跨版本保留，但 Gatekeeper 不认。收到 dmg 的人第一次打开会被拦，两种放行方式任选：
+
+* 打开被拦后，去「系统设置 → 隐私与安全性」，页面下方点「仍要打开」；
+* 或在终端执行 `xattr -dr com.apple.quarantine /Applications/MicroKeys.app`。
+
+之后就和正常应用一样，升级也不用再授权。
+
+**Developer ID 证书**可以进一步公证，收到的人双击即开，没有任何提示。先用
+`xcrun notarytool store-credentials "MicroKeys" --apple-id … --team-id …` 存好凭据，然后：
+
+```sh
+SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" NOTARY_PROFILE="MicroKeys" make release
+```
+
+脚本会签名、提交公证、等待结果、staple，再打包。
+
 ## 菜单栏
 
 点图标可以看到：键盘连接状态与传输方式（USB / 蓝牙）、两个权限的状态（点击直达设置页）、当前所有绑定、

@@ -1,6 +1,6 @@
 TESTING_PLUGIN = /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing/libTestingMacros.dylib
 
-.PHONY: build app test perf install run clean
+.PHONY: build app test perf release install run clean
 
 build:
 	swift build
@@ -17,6 +17,10 @@ test:
 perf: app
 	scripts/perf-check.sh
 
+## Distributable build under dist/: SIGN_IDENTITY="…" make release  (add NOTARY_PROFILE="…" to notarize)
+release:
+	scripts/release.sh
+
 ## Copy the app into /Applications and launch it
 install: app
 	rm -rf /Applications/MicroKeys.app
@@ -28,4 +32,4 @@ run: app
 	open build/MicroKeys.app
 
 clean:
-	rm -rf .build build
+	rm -rf .build build dist
