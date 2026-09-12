@@ -18,23 +18,30 @@ public enum PadEvent: Equatable {
     /// Parse one CRLF-delimited JSON line. Accepts both the compact form
     /// `{"m":…,"p":…}` and the standard `{"method":…,"params":…}`.
     public static func parse(_ text: String) -> PadEvent? {
-        guard let data = text.data(using: .utf8),
-              let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-        else { return nil }
-        let method = (object["m"] ?? object["method"]) as? String ?? ""
-        let params = object["p"] ?? object["params"]
-        switch method {
-        case "v.oai.hid":
-            guard let p = params as? [String: Any], let k = p["k"] as? String else { return nil }
-            let act = (p["act"] as? NSNumber)?.intValue ?? -1
-            return .key(id: k, act: act)
-        case "v.oai.rad":
-            guard let p = params as? [String: Any] else { return nil }
-            let a = (p["a"] as? NSNumber)?.doubleValue ?? 0
-            let d = (p["d"] as? NSNumber)?.doubleValue ?? 0
-            return .joystick(angle: a, distance: d)
-        default:
-            return .other(method: method)
+        // JSONSerialization hands back autoreleased Foundation objects. The
+        // HID callback runs on the main run loop, which drains its pool every
+        // turn, but a burst of reports inside one turn (or any caller without
+        // a run loop) would otherwise hold every parsed message until later.
+        // Draining here keeps memory flat regardless of who calls us.
+        autoreleasepool {
+            guard let data = text.data(using: .utf8),
+                  let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            else { return nil }
+            let method = (object["m"] ?? object["method"]) as? String ?? ""
+            let params = object["p"] ?? object["params"]
+            switch method {
+            case "v.oai.hid":
+                guard let p = params as? [String: Any], let k = p["k"] as? String else { return nil }
+                let act = (p["act"] as? NSNumber)?.intValue ?? -1
+                return .key(id: k, act: act)
+            case "v.oai.rad":
+                guard let p = params as? [String: Any] else { return nil }
+                let a = (p["a"] as? NSNumber)?.doubleValue ?? 0
+                let d = (p["d"] as? NSNumber)?.doubleValue ?? 0
+                return .joystick(angle: a, distance: d)
+            default:
+                return .other(method: method)
+            }
         }
     }
 }
