@@ -30,8 +30,9 @@ Codex Micro ──HID(Report 6, JSON)──▶ PadMonitor ──▶ FrameDecoder
 只需要 Xcode Command Line Tools（`xcode-select --install`），不需要完整 Xcode。macOS 13 及以上。
 
 ```sh
-make test        # 单元测试
+make test        # 单元测试（含一百万事件的内存压力测试）
 make app         # 生成 build/MicroKeys.app（临时签名）
+make perf        # 启动应用跑一分钟，检查内存、CPU 和 leaks，发布前跑
 make install     # 复制到 /Applications 并启动
 ```
 
@@ -102,6 +103,9 @@ MicroKeys --detect
 | 空闲 CPU | 一分钟累计 0.1 秒左右，即约 0.1%，来自每秒一次的配置文件 stat 和每 3 秒一次的权限检查 |
 | 一百万个按键事件 | 常驻内存增长 0（`StressTests`，每次 `make test` 都跑） |
 | `leaks` 工具 | 288 个对象、14 KB，全部是系统框架启动时的 XPC 连接，数分钟内不增长 |
+
+两道回归防线：`make test` 里的 `StressTests` 断言一百万事件后常驻内存增长小于 4 MB；`make perf` 启动真实的 .app
+跑一分钟（`DURATION=300` 可加长），常驻内存超过 80 MB、期间增长超过 5 MB、平均 CPU 超过 1%、或 `leaks` 数量增加，都会失败。
 
 设计上没有会随时间累积的东西：按键不写日志，帧缓冲上限 8 KB，菜单只在打开时构建，
 事件解析在自己的 autoreleasepool 里完成，所以即使一次回调里连续来几十个报告也不会堆积。
