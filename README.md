@@ -80,6 +80,9 @@ SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" NOTARY_PROFILE="Mic
 
 脚本会签名、提交公证、等待结果、staple，再打包。
 
+签名的完整说明，包括自签名证书的创建与迁移、Developer ID 的申请步骤、公证凭据、常见问题：
+**[docs/SIGNING.md](docs/SIGNING.md)**。
+
 ## 菜单栏
 
 点图标可以看到：键盘连接状态与传输方式（USB / 蓝牙）、两个权限的状态（点击直达设置页）、当前所有绑定、
