@@ -30,6 +30,7 @@ Codex Micro ──HID(Report 6, JSON)──▶ PadMonitor ──▶ FrameDecoder
 只需要 Xcode Command Line Tools（`xcode-select --install`），不需要完整 Xcode。macOS 13 及以上。
 
 ```sh
+make icon        # 从 Resources/icon-source.png 重新生成 AppIcon.icns
 make test        # 单元测试（含一百万事件的内存压力测试）
 make app         # 生成 build/MicroKeys.app（临时签名）
 make perf        # 启动应用跑一分钟，检查内存、CPU 和 leaks，发布前跑

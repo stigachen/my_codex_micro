@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import MicroKeysCore
 
-let version = "0.2.2"
+let version = "0.2.3"
 LanguagePreference.apply()
 
 /// Command-line helpers, for checking things without touching the pad.

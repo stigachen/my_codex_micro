@@ -1,6 +1,6 @@
 TESTING_PLUGIN = /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing/libTestingMacros.dylib
 
-.PHONY: build app test perf release install run clean
+.PHONY: build app icon test perf release install run clean
 
 build:
 	swift build
@@ -8,6 +8,10 @@ build:
 ## Build build/MicroKeys.app (SIGN_IDENTITY="…" make app to sign with a certificate)
 app:
 	scripts/build-app.sh
+
+## Regenerate Resources/AppIcon.icns from Resources/icon-source.png
+icon:
+	swift scripts/make-icon.swift Resources/icon-source.png Resources/AppIcon.icns
 
 ## Unit tests (Swift Testing; the plugin path is needed when only Command Line Tools are installed)
 test:
