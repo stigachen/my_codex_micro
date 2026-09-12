@@ -1,3 +1,4 @@
+import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
 import MicroKeysCore
@@ -11,7 +12,13 @@ import MicroKeysCore
 /// left-hand pair. Requires the Accessibility permission; without it macOS
 /// silently drops the events.
 final class CGKeySynthesizer: KeySynthesizing {
-    private let source = CGEventSource(stateID: .hidSystemState)
+    private let source: CGEventSource? = {
+        let s = CGEventSource(stateID: .hidSystemState)
+        // Real keyboard events carry the machine's keyboard type; a 0 here is
+        // one of the tells apps use to spot synthetic input.
+        s?.keyboardType = CGEventSourceKeyboardType(LMGetKbdType())
+        return s
+    }()
     /// Pause between individual events, in milliseconds.
     var intervalMs: Int = 0
 
@@ -44,6 +51,11 @@ final class CGKeySynthesizer: KeySynthesizing {
         }
         if element.isModifier { event.type = .flagsChanged }
         event.flags = CGEventFlags(rawValue: flags)
+        // Apps that inject text themselves (dictation tools do) commonly ignore
+        // events whose source pid is not 0, to avoid reacting to their own
+        // output. Hardware key events have pid 0; look like hardware.
+        event.setIntegerValueField(.eventSourceUnixProcessID, value: 0)
+        event.setIntegerValueField(.keyboardEventKeyboardType, value: Int64(LMGetKbdType()))
         event.post(tap: .cghidEventTap)
         if intervalMs > 0 { usleep(useconds_t(intervalMs) * 1000) }
     }

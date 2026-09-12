@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import MicroKeysCore
 
-let version = "0.1.0"
+let version = "0.1.1"
 
 /// Command-line helpers, for checking things without touching the pad.
 func runCLI(_ args: [String]) -> Int32? {
@@ -52,6 +52,13 @@ func runCLI(_ args: [String]) -> Int32? {
             return 1
         }
 
+    case "--dump-events":
+        // Print every keyboard event the system delivers, with the fields an
+        // app might use to tell hardware from synthetic input. Compare a real
+        // press of the shortcut with what MicroKeys produces.
+        let seconds = args.count > 1 ? Int(args[1]) ?? 20 : 20
+        return EventDumper.run(seconds: seconds)
+
     case "--help", "-h":
         print("""
         MicroKeys \(version) - 把 Codex Micro 的按键映射成系统快捷键
@@ -59,6 +66,7 @@ func runCLI(_ args: [String]) -> Int32? {
         不带参数：以菜单栏应用运行。
           --check-config [路径]           校验配置文件并列出绑定
           --test-shortcut <快捷键> [毫秒]  合成一次快捷键，用来验证目标应用是否响应
+          --dump-events [秒数]            打印这段时间内系统收到的所有键盘事件（诊断用）
           --version
         环境变量 MICROKEYS_CONFIG 可指定配置文件路径（默认 ~/.config/microkeys/config.json）。
         """)
