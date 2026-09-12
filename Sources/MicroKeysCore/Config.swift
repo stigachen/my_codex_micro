@@ -53,17 +53,32 @@ public struct Config: Equatable {
         case badOption(String)
 
         public var description: String {
+            let keys = KeyID.all.joined(separator: ", ")
             switch self {
-            case .notJSON(let detail): return "不是合法的 JSON：\(detail)"
-            case .notAnObject: return "顶层必须是一个 JSON 对象 { … }"
-            case .unsupportedVersion(let v): return "不支持的 version \(v)，当前只支持 \(Config.currentVersion)"
-            case .bindingsNotAnObject: return "\"bindings\" 必须是一个对象 { \"按键\": … }"
-            case .unknownKey(let k): return "不认识的按键 id '\(k)'，可用：\(KeyID.all.joined(separator: ", ")) 以及别名 MIC"
-            case .duplicateKey(let a, let b): return "'\(a)' 和 '\(b)' 指向同一个物理键，只能保留一个"
-            case .badBinding(let key, let reason): return "按键 '\(key)' 的绑定写法有误：\(reason)"
-            case .badShortcut(let key, let reason): return "按键 '\(key)' 的快捷键有误：\(reason)"
-            case .holdOnRotation(let k): return "'\(k)' 是旋钮转动，没有抬起事件，不能用 \"hold\" 模式"
-            case .badOption(let reason): return "options 有误：\(reason)"
+            case .notJSON(let detail):
+                return L10n.pick("不是合法的 JSON：\(detail)", "not valid JSON: \(detail)")
+            case .notAnObject:
+                return L10n.pick("顶层必须是一个 JSON 对象 { … }", "the top level must be a JSON object { … }")
+            case .unsupportedVersion(let v):
+                return L10n.pick("不支持的 version \(v)，当前只支持 \(Config.currentVersion)",
+                                 "unsupported version \(v); only \(Config.currentVersion) is supported")
+            case .bindingsNotAnObject:
+                return L10n.pick("\"bindings\" 必须是一个对象 { \"按键\": … }", "\"bindings\" must be an object { \"KEY\": … }")
+            case .unknownKey(let k):
+                return L10n.pick("不认识的按键 id '\(k)'，可用：\(keys) 以及别名 MIC",
+                                 "unknown key id '\(k)'; valid: \(keys), plus the alias MIC")
+            case .duplicateKey(let a, let b):
+                return L10n.pick("'\(a)' 和 '\(b)' 指向同一个物理键，只能保留一个",
+                                 "'\(a)' and '\(b)' name the same physical key; keep only one")
+            case .badBinding(let key, let reason):
+                return L10n.pick("按键 '\(key)' 的绑定写法有误：\(reason)", "binding for '\(key)' is malformed: \(reason)")
+            case .badShortcut(let key, let reason):
+                return L10n.pick("按键 '\(key)' 的快捷键有误：\(reason)", "shortcut for '\(key)' is invalid: \(reason)")
+            case .holdOnRotation(let k):
+                return L10n.pick("'\(k)' 是旋钮转动，没有抬起事件，不能用 \"hold\" 模式",
+                                 "'\(k)' is a dial turn with no release event, so \"hold\" mode is not possible")
+            case .badOption(let reason):
+                return L10n.pick("options 有误：\(reason)", "options are invalid: \(reason)")
             }
         }
     }
@@ -85,10 +100,10 @@ public struct Config: Equatable {
 
         var options = Options()
         if let rawOptions = root["options"] {
-            guard let dict = rawOptions as? [String: Any] else { throw ConfigError.badOption("必须是对象") }
+            guard let dict = rawOptions as? [String: Any] else { throw ConfigError.badOption(L10n.pick("必须是对象", "must be an object")) }
             if let interval = dict["key_interval_ms"] {
                 guard let n = (interval as? NSNumber)?.intValue, n >= 0, n <= 1000 else {
-                    throw ConfigError.badOption("key_interval_ms 必须是 0…1000 的整数")
+                    throw ConfigError.badOption(L10n.pick("key_interval_ms 必须是 0…1000 的整数", "key_interval_ms must be an integer 0…1000"))
                 }
                 options.keyIntervalMs = n
             }
@@ -106,7 +121,7 @@ public struct Config: Equatable {
 
                 let (modeText, keysText) = try unpack(value, key: name)
                 guard let mode = BindingMode(rawValue: modeText.lowercased()) else {
-                    throw ConfigError.badBinding(key: name, reason: "mode 只能是 \"tap\" 或 \"hold\"，不是 '\(modeText)'")
+                    throw ConfigError.badBinding(key: name, reason: L10n.pick("mode 只能是 \"tap\" 或 \"hold\"，不是 '\(modeText)'", "mode must be \"tap\" or \"hold\", not '\(modeText)'"))
                 }
                 if mode == .hold, KeyID.isRotation(keyID) { throw ConfigError.holdOnRotation(name) }
                 let chord: KeyChord
@@ -129,10 +144,10 @@ public struct Config: Equatable {
     private static func unpack(_ value: Any, key: String) throws -> (mode: String, keys: String) {
         if let text = value as? String { return ("tap", text) }
         guard let dict = value as? [String: Any] else {
-            throw ConfigError.badBinding(key: key, reason: "必须是快捷键字符串，或 { \"mode\": …, \"keys\": … } 对象")
+            throw ConfigError.badBinding(key: key, reason: L10n.pick("必须是快捷键字符串，或 { \"mode\": …, \"keys\": … } 对象", "must be a shortcut string or a { \"mode\": …, \"keys\": … } object"))
         }
         guard let keys = dict["keys"] as? String else {
-            throw ConfigError.badBinding(key: key, reason: "缺少 \"keys\" 字段（要绑定的系统快捷键）")
+            throw ConfigError.badBinding(key: key, reason: L10n.pick("缺少 \"keys\" 字段（要绑定的系统快捷键）", "missing \"keys\" (the system shortcut to send)"))
         }
         let mode = dict["mode"] as? String ?? "tap"
         return (mode, keys)

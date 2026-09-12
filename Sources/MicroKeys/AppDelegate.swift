@@ -12,14 +12,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let pad = PadMonitor()
 
     private var padStatus: PadStatus = .disconnected
-    private var lastKey: String = "（还没有按过键）"
-    private var lastFire: String = "（还没有触发过）"
+    private var lastKey: String?
+    private var lastFire: String?
     private var permissionTimer: Timer?
     private var inputMonitoringWasGranted = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        Log.info("MicroKeys 启动，配置文件：\(store.url.path)")
+        LanguagePreference.apply()
+        Log.info(S.logStarted(store.url.path).text)
         buildStatusItem()
 
         store.onChange = { [weak self] config, error in
@@ -35,11 +36,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         store.startWatching()
 
         mapper.onKey = { [weak self] id, act in
-            let verb = act == 1 ? "按下" : act == 0 ? "抬起" : "转动"
+            let verb = act == 1 ? S.pressed.text : act == 0 ? S.released.text : S.turned.text
             self?.lastKey = "\(id) \(verb)"
         }
         mapper.onFire = { [weak self] binding, down in
-            self?.lastFire = "\(binding.keyID) → \(binding.chord)" + (binding.mode == .hold ? (down ? "（按住）" : "（松开）") : "")
+            let suffix = binding.mode == .hold ? (down ? S.holding.text : S.letGo.text) : ""
+            self?.lastFire = "\(binding.keyID) → \(binding.chord)\(suffix)"
         }
 
         pad.onEvent = { [weak self] event in self?.mapper.handle(event) }
@@ -60,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self else { return }
             let granted = Permissions.inputMonitoringGranted
             if granted, !self.inputMonitoringWasGranted {
-                Log.info("输入监控权限已授予，重新打开设备")
+                Log.info(S.logPermissionGranted.text)
                 self.pad.start()
             }
             self.inputMonitoringWasGranted = granted
@@ -74,12 +76,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func ensurePermissions() {
-        if !Permissions.inputMonitoringGranted {
-            Permissions.requestInputMonitoring()
-        }
-        if !Permissions.accessibilityGranted {
-            Permissions.requestAccessibility()
-        }
+        if !Permissions.inputMonitoringGranted { Permissions.requestInputMonitoring() }
+        if !Permissions.accessibilityGranted { Permissions.requestAccessibility() }
     }
 
     // MARK: - Status item
@@ -99,59 +97,75 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let button = statusItem?.button else { return }
         let healthy = padStatus.isConnected && Permissions.accessibilityGranted && store.lastError == nil
         button.appearsDisabled = !healthy
-        button.toolTip = healthy ? "MicroKeys：运行中" : "MicroKeys：\(problemSummary())"
+        button.toolTip = healthy ? S.tooltipRunning.text : S.tooltipProblem(problemSummary()).text
     }
 
     private func problemSummary() -> String {
-        if !Permissions.inputMonitoringGranted { return "缺少输入监控权限" }
-        if !Permissions.accessibilityGranted { return "缺少辅助功能权限" }
-        if let error = store.lastError { return "配置错误：\(error)" }
+        if !Permissions.inputMonitoringGranted { return S.problemInputMonitoring.text }
+        if !Permissions.accessibilityGranted { return S.problemAccessibility.text }
+        if let error = store.lastError { return S.problemConfig(error).text }
         if case .openFailed(let reason) = padStatus { return reason }
-        if !padStatus.isConnected { return "未连接 Codex Micro" }
-        return "正常"
+        if !padStatus.isConnected { return S.problemDisconnected.text }
+        return S.problemNone.text
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
         switch padStatus {
-        case .connected(let transport):
-            add("Codex Micro：已连接（\(transport)）", enabled: false)
-        case .disconnected:
-            add("Codex Micro：未连接（USB 或蓝牙均可）", enabled: false)
-        case .openFailed(let reason):
-            add("Codex Micro：打不开，\(reason)", enabled: false)
+        case .connected(let transport): add(S.padConnected(transportLabel(transport)).text, enabled: false)
+        case .disconnected: add(S.padDisconnected.text, enabled: false)
+        case .openFailed(let reason): add(S.padOpenFailed(reason).text, enabled: false)
         }
-        add(Permissions.inputMonitoringGranted ? "✅ 输入监控权限已授予" : "❌ 输入监控权限未授予（点击打开设置）",
+        add((Permissions.inputMonitoringGranted ? S.inputMonitoringOK : S.inputMonitoringMissing).text,
             action: #selector(openInputMonitoring))
-        add(Permissions.accessibilityGranted ? "✅ 辅助功能权限已授予" : "❌ 辅助功能权限未授予（点击打开设置）",
+        add((Permissions.accessibilityGranted ? S.accessibilityOK : S.accessibilityMissing).text,
             action: #selector(openAccessibility))
         menu.addItem(.separator())
 
         if let error = store.lastError {
-            add("❌ 配置错误：\(error)", action: #selector(openConfig))
+            add(S.configError(error).text, action: #selector(openConfig))
         } else {
             let count = mapper.config.bindings.count
-            add(count == 0 ? "配置：没有任何绑定" : "配置：\(count) 个绑定", enabled: false)
+            add((count == 0 ? S.configNoBindings : S.configCount(count)).text, enabled: false)
             for binding in mapper.config.bindings.values.sorted(by: { $0.keyID < $1.keyID }) {
-                let label = binding.keyID == "ACT10" ? "ACT10（MIC）" : binding.keyID
-                add("    \(label) → \(binding.chord)  [\(binding.mode == .hold ? "按住" : "单击")]", enabled: false)
+                let label = binding.keyID == "ACT10" ? "ACT10 (MIC)" : binding.keyID
+                let mode = (binding.mode == .hold ? S.modeHold : S.modeTap).text
+                add("    \(label) → \(binding.chord)  [\(mode)]", enabled: false)
             }
         }
-        add("最近按键：\(lastKey)", enabled: false)
-        add("最近触发：\(lastFire)", enabled: false)
+        add(S.lastKey(lastKey ?? S.noKeyYet.text).text, enabled: false)
+        add(S.lastFire(lastFire ?? S.noFireYet.text).text, enabled: false)
         menu.addItem(.separator())
 
-        add("打开配置文件…", action: #selector(openConfig), key: ",")
-        add("重新加载配置", action: #selector(reloadConfig), key: "r")
-        add("打开说明文档…", action: #selector(openDocs))
-        add("打开日志…", action: #selector(openLog))
+        add(S.openConfig.text, action: #selector(openConfig), key: ",")
+        add(S.reloadConfig.text, action: #selector(reloadConfig), key: "r")
+        add(S.openDocs.text, action: #selector(openDocs))
+        add(S.openLog.text, action: #selector(openLog))
         menu.addItem(.separator())
 
-        let login = add("开机自动启动", action: #selector(toggleLoginItem))
+        menu.addItem(languageMenuItem())
+        let login = add(S.loginItem.text, action: #selector(toggleLoginItem))
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         login.isEnabled = Bundle.main.bundleIdentifier != nil
-        add("退出 MicroKeys", action: #selector(quit), key: "q")
+        add(S.quit.text, action: #selector(quit), key: "q")
+    }
+
+    private func languageMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: S.language.text, action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
+        let choices: [(LanguagePreference, String)] = [
+            (.system, S.languageSystem.text), (.zhHans, S.languageZh.text), (.en, S.languageEn.text),
+        ]
+        for (pref, title) in choices {
+            let entry = NSMenuItem(title: title, action: #selector(chooseLanguage(_:)), keyEquivalent: "")
+            entry.target = self
+            entry.representedObject = pref.rawValue
+            entry.state = LanguagePreference.current == pref ? .on : .off
+            submenu.addItem(entry)
+        }
+        item.submenu = submenu
+        return item
     }
 
     @discardableResult
@@ -164,6 +178,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // MARK: - Actions
+
+    @objc private func chooseLanguage(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let pref = LanguagePreference(rawValue: raw) else { return }
+        LanguagePreference.current = pref
+        // Re-parse so a displayed config error switches language too.
+        if store.lastError != nil { store.load() }
+        refreshIcon()
+    }
 
     @objc private func openInputMonitoring() {
         Permissions.requestInputMonitoring()
@@ -180,12 +202,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSWorkspace.shared.open(store.url)
     }
 
-    @objc private func reloadConfig() {
-        store.load()
-    }
+    @objc private func reloadConfig() { store.load() }
 
     @objc private func openDocs() {
-        if let url = Bundle.main.url(forResource: "CONFIG", withExtension: "md") {
+        let name = L10n.language == .zhHans ? "CONFIG" : "CONFIG.en"
+        if let url = Bundle.main.url(forResource: name, withExtension: "md")
+            ?? Bundle.main.url(forResource: "CONFIG", withExtension: "md") {
             NSWorkspace.shared.open(url)
         } else {
             NSWorkspace.shared.open(store.url.deletingLastPathComponent())
@@ -193,8 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openLog() {
-        let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/MicroKeys.log")
-        NSWorkspace.shared.open(url)
+        NSWorkspace.shared.open(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/MicroKeys.log"))
     }
 
     @objc private func toggleLoginItem() {
@@ -205,15 +226,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 try SMAppService.mainApp.register()
             }
         } catch {
-            Log.error("切换开机自启失败：\(error.localizedDescription)")
+            Log.error(S.logLoginItemFailed(error.localizedDescription).text)
             let alert = NSAlert()
-            alert.messageText = "无法切换开机自动启动"
-            alert.informativeText = "\(error.localizedDescription)\n\n请确认是以 MicroKeys.app 的形式运行（建议放在 /Applications）。"
+            alert.messageText = S.loginItemFailedTitle.text
+            alert.informativeText = S.loginItemFailedBody(error.localizedDescription).text
             alert.runModal()
         }
     }
 
-    @objc private func quit() {
-        NSApp.terminate(nil)
-    }
+    @objc private func quit() { NSApp.terminate(nil) }
 }

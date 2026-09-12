@@ -27,7 +27,7 @@ rm -rf "$OUT"
 mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
 cp "$BIN" "$OUT/Contents/MacOS/MicroKeys"
 sed "s/__VERSION__/$VERSION/g" Resources/Info.plist > "$OUT/Contents/Info.plist"
-cp docs/CONFIG.md config.example.json "$OUT/Contents/Resources/"
+cp docs/CONFIG.md docs/CONFIG.en.md config.example.json "$OUT/Contents/Resources/"
 echo -n "APPL????" > "$OUT/Contents/PkgInfo"
 
 echo "▸ codesign (identity: $IDENTITY)"

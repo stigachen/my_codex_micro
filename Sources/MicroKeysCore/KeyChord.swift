@@ -38,11 +38,17 @@ public struct KeyChord: Equatable, CustomStringConvertible {
 
         public var description: String {
             switch self {
-            case .empty: return "快捷键为空"
-            case .emptyToken: return "快捷键里有空的片段（多余的 '+'？）"
-            case .unknownKey(let k): return "不认识的按键名 '\(k)'"
-            case .duplicateModifier(let m): return "修饰键 '\(m)' 重复出现"
-            case .tooManyKeys(let a, let b): return "一个快捷键只能有一个普通键，这里有 '\(a)' 和 '\(b)'"
+            case .empty:
+                return L10n.pick("快捷键为空", "the shortcut is empty")
+            case .emptyToken:
+                return L10n.pick("快捷键里有空的片段（多余的 '+'？）", "empty piece in the shortcut (a stray '+'?)")
+            case .unknownKey(let k):
+                return L10n.pick("不认识的按键名 '\(k)'", "unknown key name '\(k)'")
+            case .duplicateModifier(let m):
+                return L10n.pick("修饰键 '\(m)' 重复出现", "modifier '\(m)' appears twice")
+            case .tooManyKeys(let a, let b):
+                return L10n.pick("一个快捷键只能有一个普通键，这里有 '\(a)' 和 '\(b)'",
+                                 "a shortcut can have only one regular key; found '\(a)' and '\(b)'")
             }
         }
     }

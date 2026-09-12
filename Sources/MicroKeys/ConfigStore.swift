@@ -31,9 +31,9 @@ final class ConfigStore {
         do {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Config.exampleJSON.write(to: url, atomically: true, encoding: .utf8)
-            Log.info("已生成示例配置：\(url.path)")
+            Log.info(S.logSeeded(url.path).text)
         } catch {
-            Log.error("写入示例配置失败：\(error.localizedDescription)")
+            Log.error(S.logSeedFailed(error.localizedDescription).text)
         }
     }
 
@@ -44,12 +44,12 @@ final class ConfigStore {
             lastData = data
             config = try Config.parse(data)
             lastError = nil
-            Log.info("配置已加载：\(config.bindings.count) 个绑定 " + describe(config))
+            Log.info(S.logLoaded(config.bindings.count, describe(config)).text)
             onChange?(config, nil)
             return true
         } catch {
             lastError = "\(error)"
-            Log.error("配置错误：\(lastError!)")
+            Log.error(S.logConfigError(lastError!).text)
             onChange?(nil, lastError)
             return false
         }

@@ -75,8 +75,8 @@ final class PadMonitor {
         let result = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
         self.manager = manager
         if result != kIOReturnSuccess {
-            let reason = result == kIOReturnNotPermitted ? "缺少「输入监控」权限" : String(format: "IOHIDManagerOpen 失败 0x%08X", result)
-            Log.warn("打开 HID 管理器失败：\(reason)")
+            let reason = result == kIOReturnNotPermitted ? S.logNoPermission.text : String(format: "IOHIDManagerOpen 0x%08X", result)
+            Log.warn(S.logHIDOpenFailed(reason).text)
             status = .openFailed(reason)
         }
     }
@@ -105,13 +105,13 @@ final class PadMonitor {
             let device = Unmanaged<IOHIDDevice>.fromOpaque(sender).takeUnretainedValue()
             monitor.report(from: device, reportID: reportID, bytes: Array(UnsafeBufferPointer(start: report, count: length)))
         }, context)
-        Log.info("Codex Micro 已连接（\(transport)）")
+        Log.info(S.logConnected(transport).text)
         electActive()
     }
 
     private func deviceRemoved(_ device: IOHIDDevice) {
         if let entry = entries.removeValue(forKey: ObjectIdentifier(device)) {
-            Log.info("Codex Micro 已断开（\(entry.transport)）")
+            Log.info(S.logDisconnected(entry.transport).text)
         }
         electActive()
     }

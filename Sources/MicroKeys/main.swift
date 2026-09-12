@@ -2,7 +2,8 @@ import AppKit
 import Foundation
 import MicroKeysCore
 
-let version = "0.1.1"
+let version = "0.2.0"
+LanguagePreference.apply()
 
 /// Command-line helpers, for checking things without touching the pad.
 func runCLI(_ args: [String]) -> Int32? {
@@ -16,13 +17,13 @@ func runCLI(_ args: [String]) -> Int32? {
         let url = args.count > 1 ? URL(fileURLWithPath: (args[1] as NSString).expandingTildeInPath) : ConfigStore.defaultURL
         do {
             let config = try Config.load(url: url)
-            print("配置正常：\(url.path)")
+            print(L10n.pick("配置正常：\(url.path)", "Config OK: \(url.path)"))
             for b in config.bindings.values.sorted(by: { $0.keyID < $1.keyID }) {
                 print("  \(b.keyID) → \(b.chord)  [\(b.mode.rawValue)]")
             }
             return 0
         } catch {
-            FileHandle.standardError.write(Data("配置错误：\(error)\n".utf8))
+            FileHandle.standardError.write(Data(L10n.pick("配置错误：\(error)\n", "Config error: \(error)\n").utf8))
             return 1
         }
 
@@ -30,25 +31,28 @@ func runCLI(_ args: [String]) -> Int32? {
         // Press the chord, hold it, release it - so you can watch the target
         // app react without needing the pad plugged in.
         guard args.count > 1 else {
-            FileHandle.standardError.write(Data("用法：MicroKeys --test-shortcut \"rctrl+rshift\" [按住毫秒数，默认 800]\n".utf8))
+            FileHandle.standardError.write(Data(L10n.pick("用法：MicroKeys --test-shortcut \"rctrl+rshift\" [按住毫秒数，默认 800]\n",
+                                                          "usage: MicroKeys --test-shortcut \"rctrl+rshift\" [hold ms, default 800]\n").utf8))
             return 2
         }
         let holdMs = args.count > 2 ? Int(args[2]) ?? 800 : 800
         do {
             let chord = try KeyChord.parse(args[1])
             if !Permissions.accessibilityGranted {
-                FileHandle.standardError.write(Data("警告：没有辅助功能权限，系统会丢弃合成的按键。\n".utf8))
+                FileHandle.standardError.write(Data(L10n.pick("警告：没有辅助功能权限，系统会丢弃合成的按键。\n",
+                                                              "warning: no Accessibility permission; macOS will drop synthetic keys.\n").utf8))
             }
-            print("3 秒后按下 \(chord)，按住 \(holdMs) ms 后松开。请切到目标应用…")
+            print(L10n.pick("3 秒后按下 \(chord)，按住 \(holdMs) ms 后松开。请切到目标应用…",
+                            "Pressing \(chord) in 3 s, holding \(holdMs) ms. Switch to the target app…"))
             sleep(3)
             let synth = CGKeySynthesizer()
             synth.press(chord)
             usleep(useconds_t(holdMs) * 1000)
             synth.release(chord)
-            print("完成")
+            print(L10n.pick("完成", "done"))
             return 0
         } catch {
-            FileHandle.standardError.write(Data("快捷键有误：\(error)\n".utf8))
+            FileHandle.standardError.write(Data(L10n.pick("快捷键有误：\(error)\n", "Invalid shortcut: \(error)\n").utf8))
             return 1
         }
 
@@ -60,7 +64,7 @@ func runCLI(_ args: [String]) -> Int32? {
         return EventDumper.run(seconds: seconds)
 
     case "--help", "-h":
-        print("""
+        print(L10n.pick("""
         MicroKeys \(version) - 把 Codex Micro 的按键映射成系统快捷键
 
         不带参数：以菜单栏应用运行。
@@ -69,7 +73,16 @@ func runCLI(_ args: [String]) -> Int32? {
           --dump-events [秒数]            打印这段时间内系统收到的所有键盘事件（诊断用）
           --version
         环境变量 MICROKEYS_CONFIG 可指定配置文件路径（默认 ~/.config/microkeys/config.json）。
-        """)
+        """, """
+        MicroKeys \(version) - map Codex Micro keys to system shortcuts
+
+        No arguments: run as the menu bar app.
+          --check-config [path]            validate the config and list bindings
+          --test-shortcut <chord> [ms]     synthesize one shortcut to see if the target app reacts
+          --dump-events [seconds]          print every keyboard event the system delivers (diagnostic)
+          --version
+        MICROKEYS_CONFIG overrides the config path (default ~/.config/microkeys/config.json).
+        """))
         return 0
 
     default:

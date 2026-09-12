@@ -46,7 +46,7 @@ final class CGKeySynthesizer: KeySynthesizing {
 
     private func post(_ element: KeyChord.Element, down: Bool, flags: UInt64) {
         guard let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(element.keyCode), keyDown: down) else {
-            Log.error("CGEvent 创建失败：\(element.name)")
+            Log.error("CGEvent create failed: \(element.name)")
             return
         }
         if element.isModifier { event.type = .flagsChanged }

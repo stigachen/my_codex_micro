@@ -33,7 +33,7 @@ private func message(_ json: String) -> String {
         #expect(message(#"{"bindings": {"ACT06": {"mode": "hold", "keys": "nope"}}}"#).contains("nope"))
         #expect(message(#"{"bindings": {"ACT06": {"mode": "toggle", "keys": "a"}}}"#).contains("toggle"))
         #expect(message(#"{"bindings": {"ENC_CW": {"mode": "hold", "keys": "a"}}}"#).contains("hold"))
-        #expect(message(#"{"bindings": {"MIC": "a", "ACT10": "b"}}"#).contains("同一个物理键"))
+        #expect(message(#"{"bindings": {"MIC": "a", "ACT10": "b"}}"#).contains("MIC"))
         #expect(message(#"{"bindings": {"ACT06": 5}}"#).contains("ACT06"))
         #expect(message(#"{"version": 2}"#).contains("version"))
         #expect(message("{ oops").contains("JSON"))
