@@ -120,6 +120,7 @@ MicroKeys --check-config                      # 校验配置并列出绑定
 MicroKeys --test-shortcut "rctrl+rshift" 800  # 3 秒后合成一次快捷键，验证目标应用是否响应
 MicroKeys --dump-events 20                    # 打印 20 秒内系统投递的键盘事件，诊断用
 MicroKeys --detect                            # 列出接在本机的 Work Louder 键盘及其通道信息
+MicroKeys --uninstall                         # 清除配置、日志、偏好、开机自启，见「卸载」
 MicroKeys --version
 ```
 
@@ -160,6 +161,33 @@ MicroKeys --detect
 
 设计上没有会随时间累积的东西：按键不写日志，帧缓冲上限 8 KB，菜单只在打开时构建，
 事件解析在自己的 autoreleasepool 里完成，所以即使一次回调里连续来几十个报告也不会堆积。
+
+## 卸载
+
+两个平台都有一条命令把应用自己创建的东西清干净，会先列出清单再确认（加 `--yes` 跳过确认）：
+
+```sh
+# macOS
+/Applications/MicroKeys.app/Contents/MacOS/MicroKeys --uninstall
+# Windows
+MicroKeys.exe --uninstall
+```
+
+它会退出正在运行的实例，然后删除下面这些：
+
+| | macOS | Windows |
+|---|---|---|
+| 配置 | `~/.config/microkeys/` | `%APPDATA%\MicroKeys\` |
+| 日志 | `~/Library/Logs/MicroKeys.log` | `%LOCALAPPDATA%\MicroKeys\` |
+| 语言等偏好 | `~/Library/Preferences/com.chenguang.MicroKeys.plist` | 注册表 `HKCU\Software\MicroKeys` |
+| 开机自启 | 登录项 | 注册表 `HKCU\…\CurrentVersion\Run` 的 `MicroKeys` |
+| 运行时缓存 | 无 | `%TEMP%\.net\MicroKeys\` |
+
+命令跑完会打印剩下需要你手动做的：删除程序本身（macOS 的 `.app`，Windows 的 `.exe`）；macOS 上还要去
+「系统设置 → 隐私与安全性」的「输入监控」和「辅助功能」里移除 MicroKeys 那一行，这是系统的权限记录，
+任何应用都无法替用户撤销，留着也无害。
+
+不做的事：两个平台都不写系统目录，不装服务、守护进程、驱动或计划任务。
 
 ## 已知限制
 

@@ -253,4 +253,14 @@ Typeless 是「按一下开始、再按一下结束」的切换式，用 `tap` �
 | 重新编译后权限又要重新给 | 用了临时签名（ad-hoc）。参考 README 用自签名证书签名，权限就能跨版本保留 |
 | 按住说话结束后某个修饰键好像卡住了 | MicroKeys 在键盘断开、配置重载、退出时都会自动松开所有按住的键；如仍异常，随手按一下那个修饰键即可复位 |
 
-日志在 `~/Library/Logs/MicroKeys.log`，菜单里「打开日志…」可直接查看。
+日志位置见第 1 节的表格，菜单里「打开日志…」可直接查看。
+
+## 10. 卸载
+
+```sh
+/Applications/MicroKeys.app/Contents/MacOS/MicroKeys --uninstall    # macOS
+MicroKeys.exe --uninstall                                            # Windows
+```
+
+先列出将删除的内容再确认（`--yes` 跳过确认）：配置、日志、语言偏好、开机自启，以及正在运行的实例。
+之后手动删除程序本身；macOS 上还需在「系统设置 → 隐私与安全性」里移除两条权限记录。详见 README「卸载」一节。

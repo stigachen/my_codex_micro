@@ -248,4 +248,14 @@ In Typeless, click "Add another" next to the Dictate shortcut and record the sam
 | Permissions have to be granted again after a rebuild | Ad-hoc signature. Sign with a self-signed certificate (see README) and the grants survive rebuilds |
 | A modifier seems stuck after push-to-talk | MicroKeys releases everything it holds on disconnect, config reload and quit; if something still sticks, tap that modifier once |
 
-The log is at `~/Library/Logs/MicroKeys.log`; "Open Log…" in the menu opens it.
+Log locations are in the table in section 1; "Open Log…" in the menu opens it.
+
+## 10. Uninstalling
+
+```sh
+/Applications/MicroKeys.app/Contents/MacOS/MicroKeys --uninstall    # macOS
+MicroKeys.exe --uninstall                                            # Windows
+```
+
+Lists what will be removed and asks for confirmation (`--yes` skips it): config, log, language preference, the launch-at-login entry, and any running instance.
+Then delete the program itself; on macOS also remove the two permission entries under System Settings → Privacy & Security. See the README's uninstall section.

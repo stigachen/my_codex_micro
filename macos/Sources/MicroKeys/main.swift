@@ -68,6 +68,9 @@ func runCLI(_ args: [String]) -> Int32? {
         let seconds = args.count > 1 ? Int(args[1]) ?? 20 : 20
         return EventDumper.run(seconds: seconds)
 
+    case "--uninstall":
+        return Uninstaller.run(assumeYes: args.contains("--yes") || args.contains("-y"))
+
     case "--help", "-h":
         print(L10n.pick("""
         MicroKeys \(version) - 把 Codex Micro 的按键映射成系统快捷键
@@ -77,6 +80,7 @@ func runCLI(_ args: [String]) -> Int32? {
           --test-shortcut <快捷键> [毫秒]  合成一次快捷键，用来验证目标应用是否响应
           --dump-events [秒数]            打印这段时间内系统收到的所有键盘事件（诊断用）
           --detect                        列出接在这台 Mac 上的 Work Louder / 乐鑫 HID 设备
+          --uninstall [--yes]             删除配置、日志、偏好和开机自启，并列出需手动处理的项
           --version
         环境变量 MICROKEYS_CONFIG 可指定配置文件路径（默认 ~/.config/microkeys/config.json）。
         """, """
@@ -87,6 +91,7 @@ func runCLI(_ args: [String]) -> Int32? {
           --test-shortcut <chord> [ms]     synthesize one shortcut to see if the target app reacts
           --dump-events [seconds]          print every keyboard event the system delivers (diagnostic)
           --detect                         list Work Louder / Espressif HID devices attached to this Mac
+          --uninstall [--yes]              remove config, log, preferences and the login item; list what is left for you
           --version
         MICROKEYS_CONFIG overrides the config path (default ~/.config/microkeys/config.json).
         """))

@@ -80,6 +80,9 @@ internal static class Program
                 }
                 return ShortcutTester.Run(args[1], args.Length > 2 && int.TryParse(args[2], out var ms) ? ms : 800);
 
+            case "--uninstall":
+                return Uninstaller.Run(args.Contains("--yes") || args.Contains("-y"));
+
             case "--help":
             case "-h":
             case "/?":
@@ -91,6 +94,7 @@ internal static class Program
                       --test-shortcut <快捷键> [毫秒]  合成一次快捷键，用来验证目标应用是否响应
                       --dump-events [秒数]            打印这段时间内系统收到的所有键盘事件（诊断用）
                       --detect                        列出接在这台电脑上的 Work Louder / 乐鑫 HID 设备
+                      --uninstall [--yes]             删除配置、日志、偏好和开机自启，并列出需手动处理的项
                       --version
                     环境变量 MICROKEYS_CONFIG 可指定配置文件路径（默认 %APPDATA%\MicroKeys\config.json）。
                     """, $"""
@@ -101,6 +105,7 @@ internal static class Program
                       --test-shortcut <chord> [ms]     synthesize one shortcut to see if the target app reacts
                       --dump-events [seconds]          print every keyboard event the system delivers (diagnostic)
                       --detect                         list Work Louder / Espressif HID devices attached to this PC
+                      --uninstall [--yes]              remove config, log, preferences and the login entry; list what is left for you
                       --version
                     MICROKEYS_CONFIG overrides the config path (default %APPDATA%\MicroKeys\config.json).
                     """));
