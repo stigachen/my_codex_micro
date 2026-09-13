@@ -159,7 +159,55 @@ xcrun stapler validate build/MicroKeys.app            # 应输出 The validate a
 
 版本号取自 `Sources/MicroKeys/main.swift` 里的 `let version`。
 
-## 6. 检查一个包的签名状态
+## 6. 在 GitHub Actions 上出 Release
+
+仓库里有两个工作流：
+
+| 文件 | 触发 | 作用 |
+|---|---|---|
+| `.github/workflows/ci.yml` | 每次 push 到 main、每个 PR | 只构建和跑测试，不出包 |
+| `.github/workflows/release.yml` | 推送 `v*` 形式的 tag | 签名、打包、创建 GitHub Release 并附上 dmg、zip、SHA256SUMS |
+
+合并 PR 永远不会产生 Release。发版就三步：
+
+```sh
+# 1. 改 Sources/MicroKeys/main.swift 里的 let version，提交
+# 2. 打 tag，版本号必须和 let version 一致，否则工作流第一步就失败
+git tag v0.3.0
+git push origin v0.3.0
+# 3. 几分钟后在仓库 Releases 页面看到产物
+```
+
+### 6.1 仓库里需要的 Secret 和 Variable
+
+| 名称 | 类型 | 内容 |
+|---|---|---|
+| `MACOS_CERT_P12` | Secret | 证书连私钥的 `.p12` 文件，base64 编码 |
+| `MACOS_CERT_PASSWORD` | Secret | 导出 `.p12` 时设的密码 |
+| `SIGN_IDENTITY` | Variable | 证书名，如 `MicroKeys Dev` 或 `Developer ID Application: Name (TEAMID)` |
+| `NOTARY_APPLE_ID` / `NOTARY_PASSWORD` / `NOTARY_TEAM_ID` | Secret，可选 | 有 Developer ID 后填上，工作流会自动公证并 staple |
+
+导出并写入的命令（在有证书的那台 Mac 上执行）：
+
+```sh
+security export -k ~/Library/Keychains/login.keychain-db -t identities -f pkcs12 -P '密码' -o cert.p12
+base64 -i cert.p12 | gh secret set MACOS_CERT_P12
+gh secret set MACOS_CERT_PASSWORD --body '密码'
+gh variable set SIGN_IDENTITY --body "MicroKeys Dev"
+rm cert.p12
+```
+
+`security export -t identities` 会导出登录钥匙串里**所有**带私钥的证书，如果不止一张，先在钥匙串访问里单独导出目标证书。
+
+### 6.2 工作流里签名是怎么做的
+
+新建一个临时钥匙串，导入 `.p12`，允许 codesign 免密使用私钥，把证书加入系统信任（自签名证书必须这一步，否则 codesign 不认），跑 `make release`，最后无论成败都删除临时钥匙串。私钥只存在于运行器的临时目录，日志里不会出现。
+
+### 6.3 费用
+
+私有仓库的 macOS 运行器按 Linux 的 10 倍计费，免费额度折合每月约 200 分钟 macOS 时间；一次 Release 构建约 3 到 5 分钟。CI 工作流每次 push 也会用掉几分钟，频繁提交时留意用量。
+
+## 7. 检查一个包的签名状态
 
 ```sh
 codesign -dvv MicroKeys.app 2>&1 | grep -E "Authority|Signature|flags"
@@ -172,7 +220,7 @@ spctl --assess --type execute MicroKeys.app
 #   accepted → 已公证；rejected → 未公证（临时签名和自签名都是这个结果）
 ```
 
-## 7. 常见问题
+## 8. 常见问题
 
 | 现象 | 原因 / 处理 |
 |---|---|

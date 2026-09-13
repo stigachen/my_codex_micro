@@ -1,4 +1,7 @@
+# With only the Command Line Tools installed, swift test cannot find the Swift
+# Testing macro plugin on its own; with Xcode it can. Detect which we have.
 TESTING_PLUGIN = /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing/libTestingMacros.dylib
+TEST_FLAGS = $(shell xcode-select -p 2>/dev/null | grep -q CommandLineTools && echo "-Xswiftc -load-plugin-library -Xswiftc $(TESTING_PLUGIN)")
 
 .PHONY: build app icon test perf release install run clean
 
@@ -15,7 +18,7 @@ icon:
 
 ## Unit tests (Swift Testing; the plugin path is needed when only Command Line Tools are installed)
 test:
-	swift test -Xswiftc -load-plugin-library -Xswiftc $(TESTING_PLUGIN)
+	swift test $(TEST_FLAGS)
 
 ## Runtime soak: launch the app, watch memory/CPU for a minute, run `leaks` (DURATION=300 for longer)
 perf: app

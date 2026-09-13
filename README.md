@@ -81,7 +81,9 @@ SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" NOTARY_PROFILE="Mic
 
 脚本会签名、提交公证、等待结果、staple，再打包。
 
-签名的完整说明，包括自签名证书的创建与迁移、Developer ID 的申请步骤、公证凭据、常见问题：
+也可以在 GitHub Actions 上出包：推送 `v0.3.0` 这样的 tag 就会自动签名、打包并创建 Release，合并 PR 不会触发。
+
+签名的完整说明，包括自签名证书的创建与迁移、Developer ID 的申请步骤、公证凭据、GitHub Actions 配置、常见问题：
 **[docs/SIGNING.md](docs/SIGNING.md)**。
 
 ## 菜单栏
