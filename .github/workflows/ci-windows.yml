@@ -1,0 +1,32 @@
+name: CI (Windows)
+
+# Build and test the Windows app on every push and pull request that touches it.
+# Never produces a release; releases come only from tags (see release.yml).
+on:
+  push:
+    branches: [main]
+    paths: ['windows/**', 'VERSION', 'config.example.json', 'docs/CONFIG*.md', '.github/workflows/ci-windows.yml']
+  pull_request:
+    paths: ['windows/**', 'VERSION', 'config.example.json', 'docs/CONFIG*.md', '.github/workflows/ci-windows.yml']
+
+jobs:
+  test:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Unit tests
+        run: dotnet test MicroKeys.Core.Tests -c Release
+      - name: Publish (win-x64)
+        run: dotnet publish MicroKeys -c Release -r win-x64 -o dist/win-x64
+      - name: Smoke-check the exe on real Windows
+        run: |
+          ./dist/win-x64/MicroKeys.exe --version
+          ./dist/win-x64/MicroKeys.exe --check-config ../config.example.json
+          ./dist/win-x64/MicroKeys.exe --detect || true   # no pad on the runner; must not crash

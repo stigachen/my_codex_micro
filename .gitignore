@@ -4,3 +4,7 @@ build/
 *.xcodeproj
 .DS_Store
 dist/
+bin/
+obj/
+*.user
+.vs/

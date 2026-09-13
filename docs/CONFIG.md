@@ -7,13 +7,16 @@ MicroKeys 用一个 JSON 文件描述「Codex Micro 上的哪个键 → 系统�
 
 默认路径：
 
-```
-~/.config/microkeys/config.json
-```
+| 系统 | 配置文件 | 日志 |
+|---|---|---|
+| macOS | `~/.config/microkeys/config.json` | `~/Library/Logs/MicroKeys.log` |
+| Windows | `%APPDATA%\MicroKeys\config.json` | `%LOCALAPPDATA%\MicroKeys\MicroKeys.log` |
 
 * 第一次启动时会自动生成一份示例配置（内容和仓库里的 `config.example.json` 一样）。
-* 菜单栏图标 → 「打开配置文件…」会用系统默认编辑器打开它。
+* 菜单栏 / 托盘图标 → 「打开配置文件…」会用系统默认编辑器打开它。
 * 想换位置：启动前设置环境变量 `MICROKEYS_CONFIG=/你的/路径.json`。
+
+**同一份配置文件在两个系统上都能用**，按键 id 和快捷键写法完全一致，差异只有第 5 节末尾列出的几处。
 
 ## 2. 最小示例
 
@@ -152,7 +155,21 @@ fn                    单独的 fn/🌐 键
 
 按键名对应的是美式键盘布局的物理位置。
 
-不支持的：媒体键（音量、播放），以及一个快捷键里放两个普通键。
+不支持的：一个快捷键里放两个普通键。
+
+### Windows 上的差异
+
+| 写法 | macOS | Windows |
+|---|---|---|
+| `cmd` / `⌘` | Command 键 | Win 键（`win` 也可以写） |
+| `opt` / `alt` | Option 键 | Alt 键 |
+| `fn` | fn / 🌐 | 不支持，Windows 没有可合成的 fn 键 |
+| `delete` / `backspace` | 退格 | 退格（与 macOS 含义一致） |
+| `forwarddelete` / `del` | 前向删除 | Delete 键 |
+| `volumeup` `volumedown` `mute` `playpause` `nexttrack` `prevtrack` | 不支持 | 支持 |
+| `insert` `printscreen` `scrolllock` `pause` `numlock` `apps` | 不支持 | 支持 |
+
+Windows 上合成按键不需要任何权限。唯一限制：MicroKeys 以普通权限运行时，按键无法送进以管理员身份运行的窗口。
 
 ## 6. 和 ChatGPT / Codex 桌面应用共存
 
@@ -228,7 +245,8 @@ Typeless 是「按一下开始、再按一下结束」的切换式，用 `tap` �
 
 | 现象 | 原因 / 处理 |
 |---|---|
-| 菜单显示「❌ 输入监控权限未授予」 | 系统设置 → 隐私与安全性 → 输入监控，打开 MicroKeys 的开关。授予后会自动重连，不用重启 |
+| 菜单显示「❌ 输入监控权限未授予」（macOS） | 系统设置 → 隐私与安全性 → 输入监控，打开 MicroKeys 的开关。授予后会自动重连，不用重启 |
+| Windows 上「最近按键」有显示，目标应用没反应 | 目标应用是否以管理员身份运行？是的话 MicroKeys 也要以管理员运行。再用 `--dump-events` 看目标应用是否忽略 `injected=yes` 的事件 |
 | 键按了，「最近按键」有显示，但目标应用没反应 | 先确认 `options.key_interval_ms` 不是 0（Typeless 需要 ≥ 30）。再查辅助功能权限：系统设置 → 隐私与安全性 → 辅助功能。仍不行可用 `--dump-events` 对比真实按键和合成按键的字段，见第 8 节 |
 | 「最近按键」什么都不显示 | 键盘没连上，或者输入监控权限没给。USB 和蓝牙都支持，两者都连着时走 USB |
 | 修改配置后没生效 | 看菜单里有没有「配置错误」。也可以手动点「重新加载配置」 |

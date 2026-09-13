@@ -5,13 +5,16 @@ The file is reloaded automatically when saved; a mistake shows up in the menu ba
 
 ## 1. Where the file lives
 
-```
-~/.config/microkeys/config.json
-```
+| OS | Config | Log |
+|---|---|---|
+| macOS | `~/.config/microkeys/config.json` | `~/Library/Logs/MicroKeys.log` |
+| Windows | `%APPDATA%\MicroKeys\config.json` | `%LOCALAPPDATA%\MicroKeys\MicroKeys.log` |
 
 * An example config is written on first launch (same as `config.example.json` in the repo).
-* Menu bar icon → "Open Config File…" opens it in your default editor.
+* Menu bar / tray icon → "Open Config File…" opens it in your default editor.
 * To use another location, set `MICROKEYS_CONFIG=/path/to/file.json` before launching.
+
+**The same config file works on both systems**: key ids and shortcut syntax are identical; the few differences are listed at the end of section 5.
 
 ## 2. Smallest example
 
@@ -150,7 +153,21 @@ Without the `r` prefix you get the left key.
 
 Key names refer to positions on the US layout.
 
-Not supported: media keys (volume, play) and two regular keys in one shortcut.
+Not supported: two regular keys in one shortcut.
+
+### Differences on Windows
+
+| Spelling | macOS | Windows |
+|---|---|---|
+| `cmd` / `⌘` | Command | the Windows key (`win` also works) |
+| `opt` / `alt` | Option | Alt |
+| `fn` | fn / 🌐 | not available; Windows has no synthesizable fn key |
+| `delete` / `backspace` | Backspace | Backspace (same meaning as on macOS) |
+| `forwarddelete` / `del` | forward delete | the Delete key |
+| `volumeup` `volumedown` `mute` `playpause` `nexttrack` `prevtrack` | not supported | supported |
+| `insert` `printscreen` `scrolllock` `pause` `numlock` `apps` | not supported | supported |
+
+Synthesizing keys needs no permission on Windows. The one limit: when MicroKeys runs unelevated, its keys cannot reach windows that run as administrator.
 
 ## 6. Living alongside the ChatGPT / Codex desktop app
 
@@ -223,7 +240,8 @@ In Typeless, click "Add another" next to the Dictate shortcut and record the sam
 
 | Symptom | Cause / fix |
 |---|---|
-| Menu shows "❌ Input Monitoring missing" | System Settings → Privacy & Security → Input Monitoring, enable MicroKeys. It reconnects on its own; no restart needed |
+| Menu shows "❌ Input Monitoring missing" (macOS) | System Settings → Privacy & Security → Input Monitoring, enable MicroKeys. It reconnects on its own; no restart needed |
+| On Windows "Last key" updates but the target app does nothing | Is the target app running as administrator? Then MicroKeys must too. Otherwise use `--dump-events` to see whether the app ignores `injected=yes` events |
 | "Last key" updates but the target app does nothing | First make sure `options.key_interval_ms` is not 0 (Typeless needs ≥ 30). Then check Accessibility: System Settings → Privacy & Security → Accessibility. Still stuck: compare real vs synthetic events with `--dump-events`, section 8 |
 | "Last key" never changes | The pad is not connected, or Input Monitoring is missing. USB and Bluetooth both work; with both connected USB wins |
 | Edits do not take effect | Look for a "Config error" line in the menu, or click "Reload Config" |

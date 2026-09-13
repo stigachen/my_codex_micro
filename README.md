@@ -1,6 +1,6 @@
 # MicroKeys
 
-把 OpenAI **Codex Micro** 键盘上的任意按键映射成 macOS 系统快捷键的菜单栏小应用。
+把 OpenAI **Codex Micro** 键盘上的任意按键映射成系统快捷键的常驻小应用，macOS 菜单栏版和 Windows 托盘版共用一份配置。
 和 ChatGPT / Codex 桌面端**并存**：键盘照常配合 Codex 使用，多出来的几个键交给 MicroKeys。
 
 典型用法：语音键 → 按住 `右Ctrl + 右Shift`，给 Wispr Flow / Superwhisper 这类按住说话的听写软件用。
@@ -23,10 +23,12 @@ Codex Micro ──HID(Report 6, JSON)──▶ PadMonitor ──▶ FrameDecoder
 ```
 
 * `macos/Sources/MicroKeysCore/` 纯逻辑，无 AppKit 依赖，有单元测试：帧解码、快捷键语法、配置解析、映射规则。
-* `macos/Sources/MicroKeys/` 应用：HID 监听、按键合成、权限、菜单栏。
+* `macos/Sources/MicroKeys/` 应用：HID 监听（IOKit）、按键合成（CGEvent）、权限、菜单栏。
+* `windows/MicroKeys.Core/` 同一套逻辑的 C# 版，测试在任何系统上都能跑。
+* `windows/MicroKeys/` 托盘应用：HID 监听（HidSharp）、按键合成（SendInput）、托盘菜单。
 * `docs/`、`config.example.json`、`VERSION` 在仓库根目录，各平台共用。
 
-仓库按平台分目录，目前只有 `macos/`；根目录的 `make` 目标会转发过去，也可以直接在 `macos/` 里执行。
+根目录的 `make test` 跑两个平台的测试；其余目标转发到 `macos/`，Windows 的用 `make windows-test` / `make windows-publish`。
 
 ## 构建与安装
 
@@ -89,6 +91,20 @@ SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" NOTARY_PROFILE="Mic
 签名的完整说明，包括自签名证书的创建与迁移、Developer ID 的申请步骤、公证凭据、GitHub Actions 配置、常见问题：
 **[docs/SIGNING.md](docs/SIGNING.md)**。
 
+## Windows 版
+
+Windows 10/11，x64 或 Arm64。从 Release 下载对应的 zip，解压后运行 `MicroKeys.exe` 即可，不需要安装 .NET，也不需要任何权限。
+未签名，SmartScreen 第一次会提示，点「更多信息 → 仍要运行」。托盘图标右键有和 macOS 版相同的菜单，含「开机自动启动」。
+
+命令行诊断和 macOS 版一致：`MicroKeys.exe --detect`、`--dump-events 20`、`--test-shortcut "rctrl+rshift"`、`--check-config`。
+
+从源码构建只需要 .NET 10 SDK，在 macOS 或 Linux 上也能交叉编译：
+
+```sh
+make windows-test       # Core 单元测试
+make windows-publish    # windows/dist/MicroKeys-<版本>-win-x64.zip 和 win-arm64.zip
+```
+
 ## 菜单栏
 
 点图标可以看到：键盘连接状态与传输方式（USB / 蓝牙）、两个权限的状态（点击直达设置页）、当前所有绑定、
@@ -147,7 +163,7 @@ MicroKeys --detect
 
 ## 已知限制
 
-* 只在 macOS 上工作（IOKit）。
+* Windows 版 2026-09-13 在一台 x64 机器上验证通过（USB 连接，语音键映射）；Arm64 版只经过交叉编译，未实测。
 * 摇杆与左下角触控板不可绑定。
 * 不支持媒体键（音量、播放）。
 * 少数直接读底层 HID 的应用看不到合成按键。
