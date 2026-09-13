@@ -17,7 +17,7 @@ cd "$(dirname "$0")/.."
 security find-identity -v -p codesigning | grep -q "\"$SIGN_IDENTITY\"" \
     || { echo "no code-signing identity named '$SIGN_IDENTITY' in the keychain" >&2; exit 1; }
 
-VERSION="$(sed -n 's/^let version = "\(.*\)"/\1/p' Sources/MicroKeys/main.swift)"
+VERSION="$(tr -d '[:space:]' < ../VERSION)"
 APP="build/MicroKeys.app"
 DIST="dist"
 STAGE="build/dmg-stage"

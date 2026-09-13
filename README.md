@@ -22,8 +22,11 @@ Codex Micro ──HID(Report 6, JSON)──▶ PadMonitor ──▶ FrameDecoder
                                       (IOKit)                        (config.json)   (CGEvent)
 ```
 
-* `Sources/MicroKeysCore/` 纯逻辑，无 AppKit 依赖，有单元测试：帧解码、快捷键语法、配置解析、映射规则。
-* `Sources/MicroKeys/` 应用：HID 监听、按键合成、权限、菜单栏。
+* `macos/Sources/MicroKeysCore/` 纯逻辑，无 AppKit 依赖，有单元测试：帧解码、快捷键语法、配置解析、映射规则。
+* `macos/Sources/MicroKeys/` 应用：HID 监听、按键合成、权限、菜单栏。
+* `docs/`、`config.example.json`、`VERSION` 在仓库根目录，各平台共用。
+
+仓库按平台分目录，目前只有 `macos/`；根目录的 `make` 目标会转发过去，也可以直接在 `macos/` 里执行。
 
 ## 构建与安装
 
@@ -81,7 +84,7 @@ SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" NOTARY_PROFILE="Mic
 
 脚本会签名、提交公证、等待结果、staple，再打包。
 
-也可以在 GitHub Actions 上出包：推送 `v0.3.0` 这样的 tag 就会自动签名、打包并创建 Release，合并 PR 不会触发。
+也可以在 GitHub Actions 上出包：把 `VERSION` 改成新版本号并提交，再推送同名的 tag（如 `v0.3.0`），就会自动签名、打包并创建 Release；合并 PR 不会触发。
 
 签名的完整说明，包括自签名证书的创建与迁移、Developer ID 的申请步骤、公证凭据、GitHub Actions 配置、常见问题：
 **[docs/SIGNING.md](docs/SIGNING.md)**。

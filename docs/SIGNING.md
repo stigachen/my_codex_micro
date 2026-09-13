@@ -157,7 +157,7 @@ xcrun stapler validate build/MicroKeys.app            # 应输出 The validate a
 * `MicroKeys-<版本>.zip`：同内容，适合命令行或 Homebrew
 * `SHA256SUMS.txt`
 
-版本号取自 `Sources/MicroKeys/main.swift` 里的 `let version`。
+版本号取自根目录的 `VERSION` 文件。
 
 ## 6. 在 GitHub Actions 上出 Release
 
@@ -165,18 +165,21 @@ xcrun stapler validate build/MicroKeys.app            # 应输出 The validate a
 
 | 文件 | 触发 | 作用 |
 |---|---|---|
-| `.github/workflows/ci.yml` | 每次 push 到 main、每个 PR | 只构建和跑测试，不出包 |
+| `.github/workflows/ci-macos.yml` | push 到 main、PR，且改动涉及 `macos/` | 只构建和跑测试，不出包 |
 | `.github/workflows/release.yml` | 推送 `v*` 形式的 tag | 签名、打包、创建 GitHub Release 并附上 dmg、zip、SHA256SUMS |
 
 合并 PR 永远不会产生 Release。发版就三步：
 
 ```sh
-# 1. 改 Sources/MicroKeys/main.swift 里的 let version，提交
-# 2. 打 tag，版本号必须和 let version 一致，否则工作流第一步就失败
+# 1. 改根目录的 VERSION 文件，提交
+echo 0.3.0 > VERSION && git commit -am "0.3.0"
+# 2. 打 tag，版本号必须和 VERSION 一致，否则工作流第一步就失败
 git tag v0.3.0
-git push origin v0.3.0
+git push origin main v0.3.0
 # 3. 几分钟后在仓库 Releases 页面看到产物
 ```
+
+工作流分三段：`check` 校验版本号，每个平台一个 job 构建并上传产物，最后 `publish` 汇总所有产物生成校验和并创建 Release。任一平台失败就不会创建 Release。
 
 ### 6.1 仓库里需要的 Secret 和 Variable
 

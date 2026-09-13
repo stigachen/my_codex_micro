@@ -12,6 +12,7 @@ cd "$(dirname "$0")/.."
 
 APP="build/MicroKeys.app"
 DURATION="${DURATION:-60}"        # seconds to soak
+SETTLE="${SETTLE:-15}"            # seconds after launch before the baseline; framework start-up finishes in ~15 s
 MAX_RSS_MB="${MAX_RSS_MB:-80}"    # idle resident memory ceiling
 MAX_RSS_GROWTH_MB="${MAX_RSS_GROWTH_MB:-5}"
 MAX_CPU_PCT="${MAX_CPU_PCT:-1.0}" # average CPU over the soak
@@ -23,7 +24,9 @@ pkill -x MicroKeys 2>/dev/null && sleep 1
 open "$APP"
 sleep 4
 PID="$(pgrep -x MicroKeys)" || { echo "MicroKeys did not start" >&2; exit 1; }
-echo "pid $PID, soaking for ${DURATION}s"
+echo "pid $PID, settling ${SETTLE}s, then soaking for ${DURATION}s"
+sleep "$SETTLE"
+kill -0 "$PID" 2>/dev/null || { echo "MicroKeys died while settling" >&2; exit 1; }
 
 rss_mb() { ps -o rss= -p "$PID" | awk '{printf "%.1f", $1/1024}'; }
 cpu_s()  { ps -o time= -p "$PID" | awk -F'[:.]' '{ if (NF==3) print $1*60+$2+$3/100; else print $1*3600+$2*60+$3 }'; }

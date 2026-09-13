@@ -2,13 +2,16 @@ name: Release
 
 # Runs only when a tag like v0.3.0 is pushed. Merging PRs never triggers it.
 #
-#   git tag v0.3.0 && git push origin v0.3.0
+#   echo 0.3.0 > VERSION && git commit -am "0.3.0" && git tag v0.3.0 && git push origin main v0.3.0
 #
-# Signs with the certificate stored in the MACOS_CERT_P12 / MACOS_CERT_PASSWORD
-# secrets (identity name in the SIGN_IDENTITY variable), builds the dmg + zip
-# with `make release`, and attaches them to a GitHub Release for the tag.
-# Add NOTARY_APPLE_ID / NOTARY_PASSWORD / NOTARY_TEAM_ID secrets once a
-# Developer ID certificate is in use and the build is notarized as well.
+# One job per platform builds and uploads its artifacts; the final job creates
+# the GitHub Release with everything at once, so a failure on any platform
+# means no Release is published at all.
+#
+# macOS signs with the certificate in MACOS_CERT_P12 / MACOS_CERT_PASSWORD
+# (identity name in the SIGN_IDENTITY variable). Add NOTARY_APPLE_ID /
+# NOTARY_PASSWORD / NOTARY_TEAM_ID once a Developer ID certificate is in use
+# and the build is notarized as well.
 on:
   push:
     tags: ['v*']
@@ -17,22 +20,30 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Tag must match VERSION
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [ "$tag" != "$version" ]; then
+            echo "tag v$tag does not match VERSION ($version)" >&2
+            exit 1
+          fi
+
+  macos:
+    needs: check
     runs-on: macos-15
+    defaults:
+      run:
+        working-directory: macos
     steps:
       - uses: actions/checkout@v5
 
       - name: Paths
         run: echo "KEYCHAIN=$RUNNER_TEMP/signing.keychain-db" >> "$GITHUB_ENV"
-
-      - name: Check that the tag matches the app version
-        run: |
-          tag="${GITHUB_REF_NAME#v}"
-          version="$(sed -n 's/^let version = "\(.*\)"/\1/p' Sources/MicroKeys/main.swift)"
-          if [ "$tag" != "$version" ]; then
-            echo "tag v$tag does not match 'let version = \"$version\"' in Sources/MicroKeys/main.swift" >&2
-            exit 1
-          fi
 
       - name: Import signing certificate
         env:
@@ -78,16 +89,39 @@ jobs:
           make release
 
       - name: Verify signature
-        run: |
-          codesign -dvv build/MicroKeys.app 2>&1 | grep -E "^(Authority|Signature)="
-          cat dist/SHA256SUMS.txt
+        run: codesign -dvv build/MicroKeys.app 2>&1 | grep -E "^(Authority|Signature)="
 
-      - name: Publish GitHub Release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: |
+            macos/dist/*.dmg
+            macos/dist/*.zip
+          if-no-files-found: error
+
+      - name: Remove signing keychain
+        if: always()
+        run: security delete-keychain "$KEYCHAIN" || true
+
+  # windows:  (added together with the windows/ project)
+
+  publish:
+    needs: [macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Checksums
+        run: cd assets && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           notes="$(cat <<'EOT'
-          ## 安装
+          ## macOS 安装
 
           1. 打开 dmg，把 MicroKeys 拖到 Applications。
           2. 第一次打开会被 Gatekeeper 拦（自签名，未公证）：去「系统设置 → 隐私与安全性」点「仍要打开」，或执行
@@ -97,9 +131,5 @@ jobs:
           配置说明见仓库 `docs/CONFIG.md`。
           EOT
           )"
-          gh release create "$GITHUB_REF_NAME" dist/*.dmg dist/*.zip dist/SHA256SUMS.txt \
+          gh release create "$GITHUB_REF_NAME" assets/* \
             --title "MicroKeys ${GITHUB_REF_NAME#v}" --notes "$notes"
-
-      - name: Remove signing keychain
-        if: always()
-        run: security delete-keychain "$KEYCHAIN" || true
