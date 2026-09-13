@@ -223,7 +223,13 @@ spctl --assess --type execute MicroKeys.app
 #   accepted → 已公证；rejected → 未公证（临时签名和自签名都是这个结果）
 ```
 
-## 8. 常见问题
+## 8. Windows 版的签名
+
+Windows 上**自签名证书没有意义**，SmartScreen 只认公开 CA 签发的证书。当前 Release 里的 exe 未签名，用户第一次运行点「更多信息 → 仍要运行」即可，之后不再提示。
+
+要去掉这个提示，性价比最高的是 **Azure Trusted Signing**（微软的云签名服务，按月计费，个人可申请），GitHub Actions 有官方 action，把凭据放进 Secret 后在 `release.yml` 的 `windows` job 里加一步签名即可。传统 OV/EV 证书也可以，但更贵且需要硬件 key。
+
+## 9. 常见问题
 
 | 现象 | 原因 / 处理 |
 |---|---|

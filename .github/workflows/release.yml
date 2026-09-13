@@ -103,10 +103,38 @@ jobs:
         if: always()
         run: security delete-keychain "$KEYCHAIN" || true
 
-  # windows:  (added together with the windows/ project)
+  windows:
+    needs: check
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Unit tests
+        run: dotnet test MicroKeys.Core.Tests -c Release
+      - name: Publish
+        run: |
+          version="$(tr -d '[:space:]' < ../VERSION)"
+          for rid in win-x64 win-arm64; do
+            dotnet publish MicroKeys -c Release -r "$rid" -o "dist/$rid"
+            rm -f "dist/$rid"/*.pdb
+            (cd "dist/$rid" && 7z a -tzip "../MicroKeys-$version-$rid.zip" . >/dev/null)
+          done
+          ./dist/win-x64/MicroKeys.exe --version
+          ls -la dist/*.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: windows/dist/*.zip
+          if-no-files-found: error
 
   publish:
-    needs: [macos]
+    needs: [macos, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -127,6 +155,12 @@ jobs:
           2. 第一次打开会被 Gatekeeper 拦（自签名，未公证）：去「系统设置 → 隐私与安全性」点「仍要打开」，或执行
              `xattr -dr com.apple.quarantine /Applications/MicroKeys.app`。
           3. 按提示授予「输入监控」和「辅助功能」权限。同一证书签名的后续版本不需要再授权。
+
+          ## Windows 安装
+
+          1. 下载 `MicroKeys-<版本>-win-x64.zip`（Arm 设备用 `win-arm64`），解压到任意目录，运行 `MicroKeys.exe`。
+          2. 未签名，SmartScreen 会提示：点「更多信息 → 仍要运行」。不需要任何权限。
+          3. 托盘图标右键菜单里可开启「开机自动启动」。
 
           配置说明见仓库 `docs/CONFIG.md`。
           EOT

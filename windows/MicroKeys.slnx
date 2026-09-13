@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="MicroKeys.Core.Tests/MicroKeys.Core.Tests.csproj" />
+  <Project Path="MicroKeys.Core/MicroKeys.Core.csproj" />
+  <Project Path="MicroKeys/MicroKeys.csproj" />
+</Solution>
