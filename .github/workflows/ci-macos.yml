@@ -1,0 +1,31 @@
+name: CI (macOS)
+
+# Build and test the macOS app on every push and pull request that touches it.
+# Never produces a release; releases come only from tags (see release.yml).
+on:
+  push:
+    branches: [main]
+    paths: ['macos/**', 'VERSION', 'config.example.json', '.github/workflows/ci-macos.yml']
+  pull_request:
+    paths: ['macos/**', 'VERSION', 'config.example.json', '.github/workflows/ci-macos.yml']
+
+jobs:
+  test:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: macos
+    steps:
+      - uses: actions/checkout@v5
+      - name: Toolchain
+        run: swift --version
+      - name: Unit tests
+        run: make test
+      - name: Build app bundle (ad-hoc signed)
+        run: make app
+      - name: Version.swift matches VERSION
+        run: git diff --exit-code -- Sources/MicroKeys/Version.swift
+      - name: Smoke-check the binary
+        run: |
+          build/MicroKeys.app/Contents/MacOS/MicroKeys --version
+          build/MicroKeys.app/Contents/MacOS/MicroKeys --check-config ../config.example.json
