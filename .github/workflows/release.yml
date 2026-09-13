@@ -19,10 +19,11 @@ permissions:
 jobs:
   release:
     runs-on: macos-15
-    env:
-      KEYCHAIN: ${{ runner.temp }}/signing.keychain-db
     steps:
       - uses: actions/checkout@v4
+
+      - name: Paths
+        run: echo "KEYCHAIN=$RUNNER_TEMP/signing.keychain-db" >> "$GITHUB_ENV"
 
       - name: Check that the tag matches the app version
         run: |
