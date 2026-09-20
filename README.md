@@ -96,7 +96,7 @@ SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" NOTARY_PROFILE="Mic
 Windows 10/11，x64 或 Arm64。从 Release 下载对应的 zip，解压后运行 `MicroKeys.exe` 即可，不需要安装 .NET，也不需要任何权限。
 未签名，SmartScreen 第一次会提示，点「更多信息 → 仍要运行」。托盘图标右键有和 macOS 版相同的菜单，含「开机自动启动」。
 
-命令行诊断和 macOS 版一致：`MicroKeys.exe --detect`、`--dump-events 20`、`--test-shortcut "rctrl+rshift"`、`--check-config`。
+命令行诊断和 macOS 版一致：`MicroKeys.exe --detect`、`--dump-pad 20`、`--dump-events 20`、`--test-shortcut "rctrl+rshift"`、`--check-config`。
 
 从源码构建只需要 .NET 10 SDK，在 macOS 或 Linux 上也能交叉编译：
 
@@ -118,6 +118,7 @@ make windows-publish    # windows/dist/MicroKeys-<版本>-win-x64.zip 和 win-ar
 ```sh
 MicroKeys --check-config                      # 校验配置并列出绑定
 MicroKeys --test-shortcut "rctrl+rshift" 800  # 3 秒后合成一次快捷键，验证目标应用是否响应
+MicroKeys --dump-pad 20                       # 打印 20 秒内键盘发出的原始按键 id，查哪个开关是 ACT10 / ACT11
 MicroKeys --dump-events 20                    # 打印 20 秒内系统投递的键盘事件，诊断用
 MicroKeys --detect                            # 列出接在本机的 Work Louder 键盘及其通道信息
 MicroKeys --uninstall                         # 清除配置、日志、偏好、开机自启，见「卸载」

@@ -56,6 +56,7 @@ MicroKeys 用一个 JSON 文件描述「Codex Micro 上的哪个键 → 系统�
 |---|---|---|
 | `version` | 否 | 目前只能是 `1`，省略也可以 |
 | `options.key_interval_ms` | 否 | 同一个快捷键内部各个按下/抬起事件之间的间隔，毫秒，默认 `30`。**不要设成 0**：Typeless 等听写软件会忽略事件紧挨着到达的组合键，实测 30 可用。想降低延迟可以试 10～20 |
+| `options.split_mic_key` | 否 | `true` 时把双宽 MIC 键下面的两个开关当成两个独立的键：`ACT10` 和 `ACT11` 可以分别绑定，对应 Codex 应用里的「使用独立麦克风键」。默认 `false`，此时 `ACT11` 被当成 `ACT10` |
 | `bindings` | 是 | 按键 id 到快捷键的映射，可以为空 |
 | 任何以 `_` 开头的字段 | 否 | 注释，随便写 |
 
@@ -102,7 +103,8 @@ JSON 本身不支持 `//` 注释，想写备注就用 `"_comment": "..."`。
 | `ACT07` | 第 3 行第 2 个 | APPR ✓ | |
 | `ACT08` | 第 3 行第 3 个 | REJ ⊗ | |
 | `ACT09` | 第 3 行第 4 个 | SPLIT | |
-| `ACT10`（别名 `MIC`） | 第 4 行的双宽键 | MIC 🎤 | 双宽键下面是两个开关，`ACT10` 和 `ACT11` 会同时触发；MicroKeys 只认 `ACT10`，写 `ACT11` 也会被当成 `ACT10` |
+| `ACT10`（别名 `MIC`） | 第 4 行的双宽键 | MIC 🎤 | 双宽键下面是两个开关，各自有 id，按到哪一侧就触发哪一侧；默认 MicroKeys 把 `ACT11` 当成 `ACT10`，整个键帽是一个键 |
+| `ACT11` | 双宽键的另一半 | | 只有 `options.split_mic_key` 为 `true` 时才能单独绑定。哪一半是 `ACT10` 用 `--dump-pad` 看，见第 8 节 |
 | `ACT12` | 第 4 行最右 | CODEX | |
 | `ENC_CLK`（别名 `DIAL`） | 按下旋钮 | | |
 | `ENC_CW`（别名 `DIAL_CW`） | 顺时针转一格 | | 每格触发一次，只能 `tap` |
@@ -111,7 +113,19 @@ JSON 本身不支持 `//` 注释，想写备注就用 `"_comment": "..."`。
 键帽是可以拔下来互换的，所以「印着什么图标」不代表是哪个 id。**不确定哪个键是哪个 id？**
 按一下那个键，然后点开菜单栏图标，「最近按键」一行会显示它的 id。
 
-id 不区分大小写，`mic`、`Mic`、`MIC` 都可以。同一个物理键只能绑一次（比如同时写 `MIC` 和 `ACT10` 会报错）。
+id 不区分大小写，`mic`、`Mic`、`MIC` 都可以。同一个物理键只能绑一次（比如同时写 `MIC` 和 `ACT10` 会报错；没开 `split_mic_key` 时同时写 `ACT10` 和 `ACT11` 也会报错）。
+
+想把双宽键当成两个键用：
+
+```json
+{
+  "options": { "split_mic_key": true },
+  "bindings": {
+    "ACT10": { "mode": "hold", "keys": "rctrl+rshift" },
+    "ACT11": "f13"
+  }
+}
+```
 
 摇杆和左下角的触控板不能绑定：摇杆是模拟量输入，触控板走的是标准键盘通道，MicroKeys 收不到。
 
@@ -227,6 +241,11 @@ Agent 键和旋钮在 ChatGPT 里没有「空白」选项，把它们映射成�
    /Applications/MicroKeys.app/Contents/MacOS/MicroKeys --dump-events 20
    ```
    真实按键 `srcPid=0`；两组的 keyCode、flags 应一致。第一次运行会向终端索要「输入监控」权限。
+5. 想知道某个开关在固件里叫什么 id（比如双宽键的两半哪个是 `ACT10`、哪个是 `ACT11`），打印键盘发出的原始事件，不做任何别名和合并：
+   ```sh
+   /Applications/MicroKeys.app/Contents/MacOS/MicroKeys --dump-pad 20
+   ```
+   同样需要终端的「输入监控」权限；正在运行的 MicroKeys 应用不受影响。
 
 ### Typeless 实测可用的配置
 

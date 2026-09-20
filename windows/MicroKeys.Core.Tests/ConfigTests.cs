@@ -35,6 +35,26 @@ public class ConfigTests
     {
         Assert.Equal(10, Config.Parse("""{"options": {"key_interval_ms": 10}, "bindings": {}}""").Options.KeyIntervalMs);
         Assert.Throws<ConfigException>(() => Config.Parse("""{"options": {"key_interval_ms": -1}}"""));
+        Assert.True(Config.Parse("""{"options": {"split_mic_key": true}}""").Options.SplitMicKey);
+        Assert.False(Config.Parse("{}").Options.SplitMicKey);
+        Assert.Throws<ConfigException>(() => Config.Parse("""{"options": {"split_mic_key": "yes"}}"""));
+    }
+
+    [Fact]
+    public void SplitMicKeyMakesAct11ItsOwnKey()
+    {
+        // Default: ACT11 folds into ACT10, and the error points at the option.
+        var folded = Config.Parse("""{"bindings": {"act11": "f13"}}""");
+        Assert.Equal("f13", folded.Bindings["ACT10"].Chord.Text);
+        Assert.False(folded.Bindings.ContainsKey("ACT11"));
+        Assert.Contains("split_mic_key", Message("""{"bindings": {"ACT10": "a", "ACT11": "b"}}"""));
+        Assert.DoesNotContain("split_mic_key", Message("""{"bindings": {"MIC": "a", "ACT10": "b"}}"""));
+
+        // Split: both halves bind separately; MIC still means ACT10.
+        var split = Config.Parse("""{"options": {"split_mic_key": true}, "bindings": {"MIC": "a", "ACT11": {"mode": "hold", "keys": "b"}}}""");
+        Assert.Equal("a", split.Bindings["ACT10"].Chord.Text);
+        Assert.Equal(BindingMode.Hold, split.Bindings["ACT11"].Mode);
+        Assert.Contains("MIC", Message("""{"options": {"split_mic_key": true}, "bindings": {"MIC": "a", "ACT10": "b"}}"""));
     }
 
     [Fact]

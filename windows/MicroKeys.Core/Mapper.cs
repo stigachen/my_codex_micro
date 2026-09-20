@@ -9,7 +9,8 @@ public interface IKeySynthesizer
 
 /// <summary>
 /// Routes pad events to shortcuts according to the config.
-/// ACT11 is dropped (second half of the MIC slot). Dial rotation fires on any
+/// ACT11 (second half of the MIC cap) counts as ACT10 unless options.split_mic_key
+/// makes it a key of its own. Dial rotation fires on any
 /// act. Real keys fire on act 1; hold bindings release on act 0. Anything held
 /// is released when the config changes or <see cref="ReleaseAll"/> is called,
 /// so a modifier can never be left stuck down.
@@ -42,7 +43,7 @@ public sealed class Mapper
     public void Handle(PadEvent e)
     {
         if (e is not PadEvent.Key key) return;
-        var id = KeyId.NormalizeEvent(key.Id);
+        var id = KeyId.NormalizeEvent(key.Id, _config.Options.SplitMicKey);
         if (id is null) return;
         KeyObserved?.Invoke(id, key.Act);
         if (!_config.Bindings.TryGetValue(id, out var binding)) return;

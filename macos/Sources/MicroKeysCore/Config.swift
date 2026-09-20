@@ -26,6 +26,12 @@ public struct Options: Equatable {
     /// events arrive back to back. Lower it if you want less latency.
     public var keyIntervalMs: Int = 30
 
+    /// Treat the two switches under the double-width MIC keycap (`ACT10` and
+    /// `ACT11`) as separate keys, like the vendor app's "use independent
+    /// microphone keys". Off by default: `ACT11` events then count as `ACT10`,
+    /// so the whole cap is one key.
+    public var splitMicKey: Bool = false
+
     public init() {}
 }
 
@@ -68,8 +74,13 @@ public struct Config: Equatable {
                 return L10n.pick("不认识的按键 id '\(k)'，可用：\(keys) 以及别名 MIC",
                                  "unknown key id '\(k)'; valid: \(keys), plus the alias MIC")
             case .duplicateKey(let a, let b):
-                return L10n.pick("'\(a)' 和 '\(b)' 指向同一个物理键，只能保留一个",
-                                 "'\(a)' and '\(b)' name the same physical key; keep only one")
+                var text = L10n.pick("'\(a)' 和 '\(b)' 指向同一个物理键，只能保留一个",
+                                     "'\(a)' and '\(b)' name the same physical key; keep only one")
+                if [a, b].contains(where: { $0.uppercased() == KeyID.micSecondHalf }) {
+                    text += L10n.pick("；要分别绑定双宽键下的两个开关，请设置 \"options\": { \"split_mic_key\": true }",
+                                      "; to bind the two switches under the wide key separately, set \"options\": { \"split_mic_key\": true }")
+                }
+                return text
             case .badBinding(let key, let reason):
                 return L10n.pick("按键 '\(key)' 的绑定写法有误：\(reason)", "binding for '\(key)' is malformed: \(reason)")
             case .badShortcut(let key, let reason):
@@ -107,6 +118,12 @@ public struct Config: Equatable {
                 }
                 options.keyIntervalMs = n
             }
+            if let split = dict["split_mic_key"] {
+                guard let b = split as? Bool else {
+                    throw ConfigError.badOption(L10n.pick("split_mic_key 必须是 true 或 false", "split_mic_key must be true or false"))
+                }
+                options.splitMicKey = b
+            }
         }
 
         var bindings: [String: Binding] = [:]
@@ -115,7 +132,7 @@ public struct Config: Equatable {
             guard let dict = rawBindings as? [String: Any] else { throw ConfigError.bindingsNotAnObject }
             for (name, value) in dict {
                 if name.hasPrefix("_") { continue }  // "_comment" and friends
-                guard let keyID = KeyID.resolve(name) else { throw ConfigError.unknownKey(name) }
+                guard let keyID = KeyID.resolve(name, splitMic: options.splitMicKey) else { throw ConfigError.unknownKey(name) }
                 if let previous = origin[keyID] { throw ConfigError.duplicateKey(previous, name) }
                 origin[keyID] = name
 

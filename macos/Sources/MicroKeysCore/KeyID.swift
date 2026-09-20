@@ -10,11 +10,18 @@ public enum KeyID {
     /// Every id a binding may target, after alias resolution.
     public static let all: [String] = agentKeys + actionKeys + [dialPress] + dialRotation
 
+    /// The second switch under the double-width MIC keycap. Only bindable when
+    /// `options.split_mic_key` is on.
+    public static let micSecondHalf = "ACT11"
+
     /// Friendly names accepted in config, resolved to the wire id.
     ///
     /// `ACT10` and `ACT11` are the two switches under one double-width keycap
-    /// (the MIC key from the factory), and both fire on every press. We route
-    /// the slot through `ACT10` and drop `ACT11`, exactly like the vendor app.
+    /// (the MIC key from the factory). Each half reports its own id, so a press
+    /// lands on one or the other depending on where the cap is pushed. By
+    /// default `ACT11` is folded into `ACT10` so the whole cap acts as one MIC
+    /// key, like the vendor app; with `split_mic_key` the halves are separate
+    /// keys (the vendor app's "use independent microphone keys").
     public static let aliases: [String: String] = [
         "MIC": "ACT10", "ACT10_ACT11": "ACT10", "ACT11": "ACT10",
         "DIAL": "ENC_CLK", "DIAL_CLICK": "ENC_CLK", "ENC": "ENC_CLK",
@@ -22,16 +29,18 @@ public enum KeyID {
     ]
 
     /// Resolve a config key (any case, alias allowed) to a wire id, or nil.
-    public static func resolve(_ name: String) -> String? {
+    /// With `splitMic`, `ACT11` is its own key instead of an alias of `ACT10`.
+    public static func resolve(_ name: String, splitMic: Bool = false) -> String? {
         let upper = name.trimmingCharacters(in: .whitespaces).uppercased()
+        if splitMic, upper == micSecondHalf { return upper }
         if let alias = aliases[upper] { return alias }
         return all.contains(upper) ? upper : nil
     }
 
-    /// Map an incoming wire id to the id bindings are keyed on. `ACT11` is the
-    /// second half of the MIC slot and is dropped so the slot fires once.
-    public static func normalizeEvent(_ wireID: String) -> String? {
-        if wireID == "ACT11" { return nil }
+    /// Map an incoming wire id to the id bindings are keyed on. Unless the MIC
+    /// key is split, `ACT11` becomes `ACT10` so either half of the cap works.
+    public static func normalizeEvent(_ wireID: String, splitMic: Bool = false) -> String? {
+        if wireID == micSecondHalf, !splitMic { return aliases[micSecondHalf] }
         return wireID
     }
 

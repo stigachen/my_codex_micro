@@ -26,6 +26,24 @@ private func message(_ json: String) -> String {
     @Test func options() throws {
         #expect(try parse(#"{"options": {"key_interval_ms": 10}, "bindings": {}}"#).options.keyIntervalMs == 10)
         #expect(throws: (any Error).self) { try parse(#"{"options": {"key_interval_ms": -1}}"#) }
+        #expect(try parse(#"{"options": {"split_mic_key": true}}"#).options.splitMicKey == true)
+        #expect(try parse(#"{}"#).options.splitMicKey == false)
+        #expect(throws: (any Error).self) { try parse(#"{"options": {"split_mic_key": "yes"}}"#) }
+    }
+
+    @Test func splitMicKeyMakesACT11ItsOwnKey() throws {
+        // Default: ACT11 folds into ACT10, and the error points at the option.
+        let folded = try parse(#"{"bindings": {"act11": "f13"}}"#)
+        #expect(folded.bindings["ACT10"]?.chord.text == "f13")
+        #expect(folded.bindings["ACT11"] == nil)
+        #expect(message(#"{"bindings": {"ACT10": "a", "ACT11": "b"}}"#).contains("split_mic_key"))
+        #expect(!message(#"{"bindings": {"MIC": "a", "ACT10": "b"}}"#).contains("split_mic_key"))
+
+        // Split: both halves bind separately; MIC still means ACT10.
+        let split = try parse(#"{"options": {"split_mic_key": true}, "bindings": {"MIC": "a", "ACT11": {"mode": "hold", "keys": "b"}}}"#)
+        #expect(split.bindings["ACT10"]?.chord.text == "a")
+        #expect(split.bindings["ACT11"]?.mode == .hold)
+        #expect(message(#"{"options": {"split_mic_key": true}, "bindings": {"MIC": "a", "ACT10": "b"}}"#).contains("MIC"))
     }
 
     @Test func errorsNameTheKey() {
