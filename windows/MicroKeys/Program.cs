@@ -68,6 +68,9 @@ internal static class Program
             case "--detect":
                 return DeviceDetector.Run();
 
+            case "--dump-pad":
+                return PadDumper.Run(args.Length > 1 && int.TryParse(args[1], out var ps) ? ps : 20);
+
             case "--dump-events":
                 return EventDumper.Run(args.Length > 1 && int.TryParse(args[1], out var s) ? s : 20);
 
@@ -92,6 +95,7 @@ internal static class Program
                     不带参数：以托盘应用运行。
                       --check-config [路径]           校验配置文件并列出绑定
                       --test-shortcut <快捷键> [毫秒]  合成一次快捷键，用来验证目标应用是否响应
+                      --dump-pad [秒数]               打印这段时间内键盘发出的原始按键 id（查某个开关是 ACT10 还是 ACT11）
                       --dump-events [秒数]            打印这段时间内系统收到的所有键盘事件（诊断用）
                       --detect                        列出接在这台电脑上的 Work Louder / 乐鑫 HID 设备
                       --uninstall [--yes]             删除配置、日志、偏好和开机自启，并列出需手动处理的项
@@ -103,6 +107,7 @@ internal static class Program
                     No arguments: run as the tray app.
                       --check-config [path]            validate the config and list bindings
                       --test-shortcut <chord> [ms]     synthesize one shortcut to see if the target app reacts
+                      --dump-pad [seconds]             print the raw key ids the pad sends (which switch is ACT10 vs ACT11)
                       --dump-events [seconds]          print every keyboard event the system delivers (diagnostic)
                       --detect                         list Work Louder / Espressif HID devices attached to this PC
                       --uninstall [--yes]              remove config, log, preferences and the login entry; list what is left for you

@@ -74,6 +74,59 @@ internal static class EventDumper
     }
 }
 
+/// <summary><c>--dump-pad</c>: open the pad and print every decoded event exactly as the firmware
+/// names it, before any alias or MIC-slot folding. Tells you which switch is ACT10 and which is ACT11.</summary>
+internal static class PadDumper
+{
+    public static int Run(int seconds)
+    {
+        // PadMonitor marshals onto a UI SynchronizationContext; a WinForms message loop supplies one.
+        var ui = new WindowsFormsSynchronizationContext();
+        SynchronizationContext.SetSynchronizationContext(ui);
+        using var pad = new PadMonitor(ui);
+        int keyEvents = 0, joystickSamples = 0;
+        static string Stamp() => DateTime.Now.ToString("HH:mm:ss.fff");
+
+        pad.StatusChanged += (state, detail) => Console.WriteLine(state switch
+        {
+            PadState.Connected => L10n.Pick($"{Stamp()} 已连接（{detail}）", $"{Stamp()} connected ({detail})"),
+            PadState.OpenFailed => L10n.Pick($"{Stamp()} 打开失败：{detail}", $"{Stamp()} open failed: {detail}"),
+            _ => L10n.Pick($"{Stamp()} 未连接", $"{Stamp()} disconnected"),
+        });
+        pad.EventReceived += e =>
+        {
+            switch (e)
+            {
+                case PadEvent.Key k:
+                    keyEvents++;
+                    var verb = k.Act == 1 ? L10n.Pick("按下", "down") : k.Act == 0 ? L10n.Pick("抬起", "up") : $"act={k.Act}";
+                    Console.WriteLine($"{Stamp()} key {k.Id}  {verb}");
+                    break;
+                case PadEvent.Joystick:
+                    joystickSamples++;   // continuous while moved; summarised at the end
+                    break;
+                case PadEvent.Other o:
+                    Console.WriteLine($"{Stamp()} other {o.Method}");
+                    break;
+            }
+        };
+
+        Console.WriteLine(L10n.Pick($"监听 {seconds} 秒，打印键盘发出的原始按键 id（不做任何别名或 MIC 键合并）。现在按几下要查的键…",
+            $"Listening for {seconds} s, printing raw key ids from the pad (no aliasing, no MIC-slot folding). Press the keys you want to identify…"));
+        Console.WriteLine(L10n.Pick("同时运行的 MicroKeys 托盘程序不受影响。", "A running MicroKeys tray app is not affected."));
+
+        pad.Start();
+        var timer = new System.Windows.Forms.Timer { Interval = seconds * 1000 };
+        timer.Tick += (_, _) => Application.ExitThread();
+        timer.Start();
+        Application.Run();
+
+        Console.WriteLine(L10n.Pick($"结束：{keyEvents} 个按键事件，{joystickSamples} 个摇杆采样（未打印）。",
+            $"Done: {keyEvents} key events, {joystickSamples} joystick samples (not printed)."));
+        return 0;
+    }
+}
+
 /// <summary><c>--test-shortcut</c>: press a chord, hold, release, without the pad.</summary>
 internal static class ShortcutTester
 {

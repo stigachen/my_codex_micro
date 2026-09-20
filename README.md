@@ -96,7 +96,7 @@ SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" NOTARY_PROFILE="Mic
 Windows 10/11，x64 或 Arm64。从 Release 下载对应的 zip，解压后运行 `MicroKeys.exe` 即可，不需要安装 .NET，也不需要任何权限。
 未签名，SmartScreen 第一次会提示，点「更多信息 → 仍要运行」。托盘图标右键有和 macOS 版相同的菜单，含「开机自动启动」。
 
-命令行诊断和 macOS 版一致：`MicroKeys.exe --detect`、`--dump-events 20`、`--test-shortcut "rctrl+rshift"`、`--check-config`。
+命令行诊断和 macOS 版一致：`MicroKeys.exe --detect`、`--dump-pad 20`、`--dump-events 20`、`--test-shortcut "rctrl+rshift"`、`--check-config`。
 
 从源码构建只需要 .NET 10 SDK，在 macOS 或 Linux 上也能交叉编译：
 
