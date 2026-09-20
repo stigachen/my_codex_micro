@@ -86,7 +86,7 @@ final class ConfigStore {
     private func describe(_ config: Config) -> String {
         config.bindings.values
             .sorted { $0.keyID < $1.keyID }
-            .map { "\($0.keyID)→\($0.chord) (\($0.mode.rawValue))" }
+            .map { "\($0.keyID)→\($0.target) (\($0.mode.rawValue))" }
             .joined(separator: ", ")
     }
 }

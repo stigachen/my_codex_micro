@@ -85,5 +85,5 @@ internal sealed class ConfigStore
     }
 
     private static string Describe(Config c) => string.Join(", ",
-        c.Bindings.Values.OrderBy(b => b.KeyId, StringComparer.Ordinal).Select(b => $"{b.KeyId}→{b.Chord} ({b.Mode.ToString().ToLowerInvariant()})"));
+        c.Bindings.Values.OrderBy(b => b.KeyId, StringComparer.Ordinal).Select(b => $"{b.KeyId}→{b.Target} ({b.Mode.ToString().ToLowerInvariant()})"));
 }
