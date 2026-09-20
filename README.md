@@ -118,6 +118,7 @@ make windows-publish    # windows/dist/MicroKeys-<版本>-win-x64.zip 和 win-ar
 ```sh
 MicroKeys --check-config                      # 校验配置并列出绑定
 MicroKeys --test-shortcut "rctrl+rshift" 800  # 3 秒后合成一次快捷键，验证目标应用是否响应
+MicroKeys --dump-pad 20                       # 打印 20 秒内键盘发出的原始按键 id，查哪个开关是 ACT10 / ACT11
 MicroKeys --dump-events 20                    # 打印 20 秒内系统投递的键盘事件，诊断用
 MicroKeys --detect                            # 列出接在本机的 Work Louder 键盘及其通道信息
 MicroKeys --uninstall                         # 清除配置、日志、偏好、开机自启，见「卸载」

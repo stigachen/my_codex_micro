@@ -17,6 +17,11 @@ public sealed class Options
     /// <summary>Pause between the individual key events of one shortcut. 30 ms is a safe
     /// default: some apps (Typeless, for one) ignore a chord whose events arrive back to back.</summary>
     public int KeyIntervalMs { get; set; } = 30;
+
+    /// <summary>Treat the two switches under the double-width MIC keycap (ACT10 and ACT11)
+    /// as separate keys, like the vendor app's "use independent microphone keys".
+    /// Off by default: ACT11 events then count as ACT10, so the whole cap is one key.</summary>
+    public bool SplitMicKey { get; set; } = false;
 }
 
 public sealed class ConfigException : Exception
@@ -72,6 +77,13 @@ public sealed class Config
                             "options are invalid: key_interval_ms must be an integer 0…1000"));
                     options.KeyIntervalMs = ms;
                 }
+                if (o.TryGetProperty("split_mic_key", out var sp))
+                {
+                    if (sp.ValueKind != JsonValueKind.True && sp.ValueKind != JsonValueKind.False)
+                        throw new ConfigException(L10n.Pick("options 有误：split_mic_key 必须是 true 或 false",
+                            "options are invalid: split_mic_key must be true or false"));
+                    options.SplitMicKey = sp.GetBoolean();
+                }
             }
 
             var bindings = new Dictionary<string, Binding>();
@@ -84,12 +96,18 @@ public sealed class Config
                 {
                     var name = prop.Name;
                     if (name.StartsWith('_')) continue;  // "_comment" and friends
-                    var keyId = KeyId.Resolve(name) ?? throw new ConfigException(L10n.Pick(
+                    var keyId = KeyId.Resolve(name, options.SplitMicKey) ?? throw new ConfigException(L10n.Pick(
                         $"不认识的按键 id '{name}'，可用：{string.Join(", ", KeyId.All)} 以及别名 MIC",
                         $"unknown key id '{name}'; valid: {string.Join(", ", KeyId.All)}, plus the alias MIC"));
                     if (origin.TryGetValue(keyId, out var previous))
-                        throw new ConfigException(L10n.Pick($"'{previous}' 和 '{name}' 指向同一个物理键，只能保留一个",
-                            $"'{previous}' and '{name}' name the same physical key; keep only one"));
+                    {
+                        var text = L10n.Pick($"'{previous}' 和 '{name}' 指向同一个物理键，只能保留一个",
+                            $"'{previous}' and '{name}' name the same physical key; keep only one");
+                        if (previous.ToUpperInvariant() == KeyId.MicSecondHalf || name.ToUpperInvariant() == KeyId.MicSecondHalf)
+                            text += L10n.Pick("；要分别绑定双宽键下的两个开关，请设置 \"options\": { \"split_mic_key\": true }",
+                                "; to bind the two switches under the wide key separately, set \"options\": { \"split_mic_key\": true }");
+                        throw new ConfigException(text);
+                    }
                     origin[keyId] = name;
 
                     var (modeText, keysText) = Unpack(prop.Value, name);

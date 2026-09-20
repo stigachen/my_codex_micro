@@ -16,13 +16,43 @@ public class MapperTests
     {
         var (m, rec) = Make("""{"bindings": {"MIC": {"mode": "hold", "keys": "rctrl+rshift"}}}""");
         m.Handle(new PadEvent.Key("ACT10", 1));
-        m.Handle(new PadEvent.Key("ACT11", 1));   // second half of the double-width slot: ignored
+        m.Handle(new PadEvent.Key("ACT10", 1));   // repeat while held: ignored
         Assert.Equal(new[] { "down rctrl+rshift" }, rec.Log);
         Assert.Equal(new[] { "ACT10" }, m.HeldKeys);
-        m.Handle(new PadEvent.Key("ACT11", 0));
+        m.Handle(new PadEvent.Key("ACT10", 0));
         m.Handle(new PadEvent.Key("ACT10", 0));
         Assert.Equal(new[] { "down rctrl+rshift", "up rctrl+rshift" }, rec.Log);
         Assert.Empty(m.HeldKeys);
+    }
+
+    [Fact]
+    public void OtherHalfOfMicCapCountsAsAct10ByDefault()
+    {
+        var (m, rec) = Make("""{"bindings": {"MIC": {"mode": "hold", "keys": "rctrl+rshift"}}}""");
+        var seen = new List<string>();
+        m.KeyObserved += (id, act) => seen.Add($"{id} {act}");
+        m.Handle(new PadEvent.Key("ACT11", 1));
+        Assert.Equal(new[] { "ACT10" }, m.HeldKeys);
+        m.Handle(new PadEvent.Key("ACT11", 0));
+        Assert.Equal(new[] { "down rctrl+rshift", "up rctrl+rshift" }, rec.Log);
+        Assert.Equal(new[] { "ACT10 1", "ACT10 0" }, seen);
+    }
+
+    [Fact]
+    public void SplitMicKeyRoutesEachHalfSeparately()
+    {
+        var (m, rec) = Make("""{"options": {"split_mic_key": true}, "bindings": {"ACT10": {"mode": "hold", "keys": "rctrl+rshift"}, "ACT11": "f13"}}""");
+        var seen = new List<string>();
+        m.KeyObserved += (id, act) => seen.Add($"{id} {act}");
+        m.Handle(new PadEvent.Key("ACT11", 1));
+        m.Handle(new PadEvent.Key("ACT11", 0));
+        Assert.Equal(new[] { "down f13", "up f13" }, rec.Log);
+        Assert.Empty(m.HeldKeys);
+        m.Handle(new PadEvent.Key("ACT10", 1));
+        Assert.Equal(new[] { "ACT10" }, m.HeldKeys);
+        m.Handle(new PadEvent.Key("ACT10", 0));
+        Assert.Equal(new[] { "down f13", "up f13", "down rctrl+rshift", "up rctrl+rshift" }, rec.Log);
+        Assert.Equal(new[] { "ACT11 1", "ACT11 0", "ACT10 1", "ACT10 0" }, seen);
     }
 
     [Fact]

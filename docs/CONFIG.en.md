@@ -54,6 +54,7 @@ That is what push-to-talk dictation apps expect.
 |---|---|---|
 | `version` | no | only `1`; may be omitted |
 | `options.key_interval_ms` | no | pause between the individual down/up events of one shortcut, in ms. Default `30`. **Do not set it to 0**: dictation apps such as Typeless ignore a chord whose events arrive back to back. 10–20 may work if you want less latency |
+| `options.split_mic_key` | no | `true` treats the two switches under the double-width MIC cap as separate keys, so `ACT10` and `ACT11` can be bound individually. This is the Codex app's "use independent microphone keys". Default `false`, in which case `ACT11` is folded into `ACT10` |
 | `bindings` | yes | key id → shortcut; may be empty |
 | any field starting with `_` | no | a comment |
 
@@ -100,7 +101,8 @@ row 4:  [ ◉ touchpad ] [ ══ ACT10 + ACT11 ══ ] [ ACT12 ]
 | `ACT07` | row 3, second | APPR ✓ | |
 | `ACT08` | row 3, third | REJ ⊗ | |
 | `ACT09` | row 3, fourth | SPLIT | |
-| `ACT10` (alias `MIC`) | the double-width key in row 4 | MIC 🎤 | two switches sit under one cap and both fire; MicroKeys uses `ACT10` and treats `ACT11` as the same key |
+| `ACT10` (alias `MIC`) | the double-width key in row 4 | MIC 🎤 | two switches sit under one cap, each with its own id, and a press lands on whichever side you push; by default MicroKeys treats `ACT11` as `ACT10`, so the whole cap is one key |
+| `ACT11` | the other half of the double-width key | | bindable on its own only with `options.split_mic_key` set to `true`. Use `--dump-pad` (section 8) to see which half is which |
 | `ACT12` | row 4, right | CODEX | |
 | `ENC_CLK` (alias `DIAL`) | dial press | | |
 | `ENC_CW` (alias `DIAL_CW`) | dial, one detent clockwise | | fires once per detent, `tap` only |
@@ -109,7 +111,19 @@ row 4:  [ ◉ touchpad ] [ ══ ACT10 + ACT11 ══ ] [ ACT12 ]
 Keycaps are swappable, so the printed icon does not tell you the id. **Not sure which key is which?**
 Press it, then open the menu: "Last key" shows its id.
 
-Ids are case-insensitive. Each physical key can be bound once (writing both `MIC` and `ACT10` is an error).
+Ids are case-insensitive. Each physical key can be bound once (writing both `MIC` and `ACT10` is an error, and so is `ACT10` plus `ACT11` unless `split_mic_key` is on).
+
+To use the double-width key as two keys:
+
+```json
+{
+  "options": { "split_mic_key": true },
+  "bindings": {
+    "ACT10": { "mode": "hold", "keys": "rctrl+rshift" },
+    "ACT11": "f13"
+  }
+}
+```
 
 The joystick and the touchpad cannot be bound: the joystick is analogue and the touchpad speaks plain HID keyboard, which MicroKeys does not read.
 
@@ -222,6 +236,11 @@ Agent Keys and the dial have no blank option in ChatGPT, so mapping them means b
    /Applications/MicroKeys.app/Contents/MacOS/MicroKeys --dump-events 20
    ```
    Hardware keys show `srcPid=0`; keyCode and flags of the two groups should match. The first run asks for Input Monitoring for the terminal.
+5. To learn what the firmware calls a switch (for example which half of the wide key is `ACT10` and which is `ACT11`), print the pad's raw events with no aliasing or folding:
+   ```sh
+   /Applications/MicroKeys.app/Contents/MacOS/MicroKeys --dump-pad 20
+   ```
+   Also needs Input Monitoring for the terminal; a running MicroKeys app is not affected.
 
 ### A configuration verified with Typeless
 
