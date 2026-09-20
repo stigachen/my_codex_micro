@@ -6,7 +6,7 @@ namespace MicroKeys;
 
 internal static class Program
 {
-    private static string Version =>
+    internal static string Version =>
         Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
         ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
 

@@ -36,7 +36,7 @@ enum S {
     case pressed, released, turned, holding, letGo
     case openConfig, reloadConfig, openDocs, openLog
     case language, languageSystem, languageZh, languageEn
-    case loginItem, quit
+    case loginItem, about, quit
     case loginItemFailedTitle, loginItemFailedBody(String)
     case tooltipRunning, tooltipProblem(String)
     case problemInputMonitoring, problemAccessibility, problemConfig(String), problemDisconnected, problemNone
@@ -79,6 +79,7 @@ enum S {
         case .languageZh: return "简体中文"
         case .languageEn: return "English"
         case .loginItem: return zh ? "开机自动启动" : "Launch at Login"
+        case .about: return zh ? "关于 MicroKeys" : "About MicroKeys"
         case .quit: return zh ? "退出 MicroKeys" : "Quit MicroKeys"
         case .loginItemFailedTitle: return zh ? "无法切换开机自动启动" : "Could not change Launch at Login"
         case .loginItemFailedBody(let e): return zh

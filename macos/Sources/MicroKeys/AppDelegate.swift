@@ -153,6 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let login = add(S.loginItem.text, action: #selector(toggleLoginItem))
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         login.isEnabled = Bundle.main.bundleIdentifier != nil
+        add(S.about.text, action: #selector(showAbout))
         add(S.quit.text, action: #selector(quit), key: "q")
     }
 
@@ -237,6 +238,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             alert.informativeText = S.loginItemFailedBody(error.localizedDescription).text
             alert.runModal()
         }
+    }
+
+    /// The standard About panel: icon, name, version and copyright, all from
+    /// the bundle. The app is an accessory (no Dock icon), so it has to
+    /// activate first or the panel opens behind whatever is frontmost.
+    @objc private func showAbout() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationName: "MicroKeys",
+            .applicationVersion: MicroKeys.version,
+            .version: "",   // hide the "(build)" suffix; CFBundleVersion is the same number
+        ])
     }
 
     @objc private func quit() { NSApp.terminate(nil) }

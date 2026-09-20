@@ -119,7 +119,22 @@ internal sealed class TrayApp : ApplicationContext
         var login = new ToolStripMenuItem(S.LoginItem) { Checked = IsLaunchAtLogin() };
         login.Click += (_, _) => SetLaunchAtLogin(!IsLaunchAtLogin());
         _menu.Items.Add(login);
+        Add(S.About, ShowAbout);
         Add(S.Quit, () => Application.Exit());
+    }
+
+    private static void ShowAbout()
+    {
+        var page = new TaskDialogPage
+        {
+            Caption = S.About,
+            Heading = "MicroKeys",
+            Text = L10n.Pick($"版本 {Program.Version}\n\nCopyright © 2026 Guang Chen", $"Version {Program.Version}\n\nCopyright © 2026 Guang Chen"),
+            Icon = new TaskDialogIcon(LoadIcon()),
+            AllowCancel = true,
+        };
+        page.Buttons.Add(TaskDialogButton.OK);
+        TaskDialog.ShowDialog(page);
     }
 
     private void Add(string text, Action? click = null, bool enabled = true)
