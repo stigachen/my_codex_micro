@@ -129,16 +129,12 @@ internal sealed class TrayApp : ApplicationContext
         {
             Caption = S.About,
             Heading = "MicroKeys",
-            Text = L10n.Pick($"版本 {Program.Version}\n\nCopyright © 2026 chenguang. MIT License.",
-                             $"Version {Program.Version}\n\nCopyright © 2026 chenguang. MIT License."),
-            Icon = TaskDialogIcon.Information,
+            Text = L10n.Pick($"版本 {Program.Version}\n\nCopyright © 2026 chenguang", $"Version {Program.Version}\n\nCopyright © 2026 chenguang"),
+            Icon = new TaskDialogIcon(LoadIcon()),
             AllowCancel = true,
-            Footnote = new TaskDialogFootnote { Text = "https://github.com/stigachen/my_codex_micro" },
         };
-        var open = new TaskDialogButton(L10n.Pick("打开项目主页", "Open project page"));
         page.Buttons.Add(TaskDialogButton.OK);
-        page.Buttons.Add(open);
-        if (TaskDialog.ShowDialog(page) == open) Open("https://github.com/stigachen/my_codex_micro");
+        TaskDialog.ShowDialog(page);
     }
 
     private void Add(string text, Action? click = null, bool enabled = true)

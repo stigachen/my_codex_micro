@@ -240,20 +240,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    /// The standard About panel: icon, name, version and copyright come from
-    /// the bundle; the credits line links to the project. The app is an
-    /// accessory (no Dock icon), so it has to activate first or the panel
-    /// opens behind whatever is frontmost.
+    /// The standard About panel: icon, name, version and copyright, all from
+    /// the bundle. The app is an accessory (no Dock icon), so it has to
+    /// activate first or the panel opens behind whatever is frontmost.
     @objc private func showAbout() {
-        let credits = NSMutableAttributedString(string: "github.com/stigachen/my_codex_micro",
-                                                attributes: [.link: URL(string: "https://github.com/stigachen/my_codex_micro")!,
-                                                             .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)])
         NSApp.activate(ignoringOtherApps: true)
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationName: "MicroKeys",
             .applicationVersion: MicroKeys.version,
             .version: "",   // hide the "(build)" suffix; CFBundleVersion is the same number
-            .credits: credits,
         ])
     }
 
