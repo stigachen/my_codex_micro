@@ -261,6 +261,7 @@ In Typeless, click "Add another" next to the Dictate shortcut and record the sam
 |---|---|
 | Menu shows "❌ Input Monitoring missing" (macOS) | System Settings → Privacy & Security → Input Monitoring, enable MicroKeys. It reconnects on its own; no restart needed |
 | On Windows "Last key" updates but the target app does nothing | Is the target app running as administrator? Then MicroKeys must too. Otherwise use `--dump-events` to see whether the app ignores `injected=yes` events |
+| A chord with an arrow key such as `ctrl+alt+cmd+up` does not trigger a Raycast hotkey, but the same chord with a letter does | Known issue, to be fixed: on macOS the synthesized arrow, Home/End/Page Up/Page Down and F keys lack the fn / numeric-pad flags a real keyboard adds, so flag-comparing hotkey matchers reject them. Workaround: use a letter or digit in the hotkey |
 | "Last key" updates but the target app does nothing | First make sure `options.key_interval_ms` is not 0 (Typeless needs ≥ 30). Then check Accessibility: System Settings → Privacy & Security → Accessibility. Still stuck: compare real vs synthetic events with `--dump-events`, section 8 |
 | "Last key" never changes | The pad is not connected, or Input Monitoring is missing. USB and Bluetooth both work; with both connected USB wins |
 | Edits do not take effect | Look for a "Config error" line in the menu, or click "Reload Config" |
