@@ -33,10 +33,16 @@ public struct Binding: Equatable {
     }
 
     /// What the binding sends, for menus and logs: the shortcut as written,
-    /// or the text in quotes.
+    /// or the text in quotes with line breaks and tabs shown as `\n` / `\t`.
     public var target: String {
         if let chord { return chord.text }
-        return "\"\(text ?? "")\""
+        let shown = (text ?? "")
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\r\n", with: "\\n")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+            .replacingOccurrences(of: "\t", with: "\\t")
+        return "\"\(shown)\""
     }
 }
 

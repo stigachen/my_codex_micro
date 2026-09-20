@@ -66,6 +66,7 @@ public class ConfigTests
         Assert.Null(c.Bindings["ACT06"].Chord);
         Assert.Equal("\"abc\"", c.Bindings["ACT06"].Target);
         Assert.Equal("你好\n", c.Bindings["ENC_CW"].Text);
+        Assert.Equal("\"你好\\n\"", c.Bindings["ENC_CW"].Target);
 
         Assert.Contains("text", Message("""{"bindings": {"ACT06": {"mode": "type"}}}"""));
         Assert.Contains("text", Message("""{"bindings": {"ACT06": {"mode": "type", "text": ""}}}"""));

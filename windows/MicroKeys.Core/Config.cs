@@ -15,8 +15,10 @@ public enum BindingMode
 /// <summary>One binding. <paramref name="Chord"/> is set for tap/hold, <paramref name="Text"/> for type.</summary>
 public sealed record Binding(string KeyId, BindingMode Mode, KeyChord? Chord, string? Text = null)
 {
-    /// <summary>What the binding sends, for menus and logs: the shortcut as written, or the text in quotes.</summary>
-    public string Target => Chord?.Text ?? $"\"{Text}\"";
+    /// <summary>What the binding sends, for menus and logs: the shortcut as written, or the text
+    /// in quotes with line breaks and tabs shown as \n / \t.</summary>
+    public string Target => Chord?.Text ?? "\"" + (Text ?? "")
+        .Replace("\\", "\\\\").Replace("\r\n", "\\n").Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t") + "\"";
 }
 
 public sealed class Options

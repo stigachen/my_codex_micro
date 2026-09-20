@@ -53,6 +53,7 @@ private func message(_ json: String) -> String {
         #expect(c.bindings["ACT06"]?.chord == nil)
         #expect(c.bindings["ACT06"]?.target == "\"abc\"")
         #expect(c.bindings["ENC_CW"]?.text == "你好\n")
+        #expect(c.bindings["ENC_CW"]?.target == #""你好\n""#)
 
         #expect(message(#"{"bindings": {"ACT06": {"mode": "type"}}}"#).contains("text"))
         #expect(message(#"{"bindings": {"ACT06": {"mode": "type", "text": ""}}}"#).contains("text"))
