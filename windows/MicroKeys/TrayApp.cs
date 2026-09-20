@@ -129,7 +129,7 @@ internal sealed class TrayApp : ApplicationContext
         {
             Caption = S.About,
             Heading = "MicroKeys",
-            Text = L10n.Pick($"版本 {Program.Version}\n\nCopyright © 2026 chenguang", $"Version {Program.Version}\n\nCopyright © 2026 chenguang"),
+            Text = L10n.Pick($"版本 {Program.Version}\n\nCopyright © 2026 Guang Chen", $"Version {Program.Version}\n\nCopyright © 2026 Guang Chen"),
             Icon = new TaskDialogIcon(LoadIcon()),
             AllowCancel = true,
         };
