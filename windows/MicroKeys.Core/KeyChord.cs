@@ -118,7 +118,7 @@ public static class KeyTable
         Add(0x0D, true, "keypadenter");
         Add(0x6B, false, "keypadplus"); Add(0x6D, false, "keypadminus"); Add(0x6A, false, "keypadmultiply");
         Add(0x6F, true, "keypaddivide"); Add(0x6E, false, "keypaddecimal");
-        // Windows can synthesize media keys, so they are allowed here (not on macOS).
+        // Media keys; same spellings as the macOS build.
         Add(0xAF, true, "volumeup"); Add(0xAE, true, "volumedown"); Add(0xAD, true, "mute");
         Add(0xB3, true, "playpause"); Add(0xB0, true, "nexttrack"); Add(0xB1, true, "prevtrack");
         return d;

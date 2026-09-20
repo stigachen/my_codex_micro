@@ -166,6 +166,7 @@ fn                    单独的 fn/🌐 键
 * `up`、`down`、`left`、`right`、`home`、`end`、`pageup`、`pagedown`
 * 符号可以直接写字符：`-` `=` `[` `]` `\` `;` `'` `,` `.` `/` `` ` ``；也可以写名字：`minus` `equal` `leftbracket` `rightbracket` `backslash` `semicolon` `quote` `comma` `period` `slash` `grave`
 * 小键盘：`keypad0`～`keypad9`、`keypadenter`、`keypadplus`、`keypadminus`、`keypadmultiply`、`keypaddivide`、`keypaddecimal`、`keypadequals`
+* 媒体键：`volumeup`、`volumedown`、`mute`、`playpause`、`nexttrack`、`prevtrack`。macOS 上 `shift+option+volumeup` 是四分之一格的细调，和真实键盘一样
 
 按键名对应的是美式键盘布局的物理位置。
 
@@ -180,7 +181,6 @@ fn                    单独的 fn/🌐 键
 | `fn` | fn / 🌐 | 不支持，Windows 没有可合成的 fn 键 |
 | `delete` / `backspace` | 退格 | 退格（与 macOS 含义一致） |
 | `forwarddelete` / `del` | 前向删除 | Delete 键 |
-| `volumeup` `volumedown` `mute` `playpause` `nexttrack` `prevtrack` | 不支持 | 支持 |
 | `insert` `printscreen` `scrolllock` `pause` `numlock` `apps` | 不支持 | 支持 |
 
 Windows 上合成按键不需要任何权限。唯一限制：MicroKeys 以普通权限运行时，按键无法送进以管理员身份运行的窗口。
@@ -222,6 +222,21 @@ Agent 键和旋钮在 ChatGPT 里没有「空白」选项，把它们映射成�
   }
 }
 ```
+
+用旋钮控制音量，按下旋钮静音：
+
+```json
+{
+  "version": 1,
+  "bindings": {
+    "DIAL_CW": "volumeup",
+    "DIAL_CC": "volumedown",
+    "DIAL":    "mute"
+  }
+}
+```
+
+想每格调得更细，把转动改成 `shift+option+volumeup` / `shift+option+volumedown`。
 
 ## 8. 检查配置是否正确
 

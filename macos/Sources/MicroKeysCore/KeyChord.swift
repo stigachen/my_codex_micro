@@ -1,14 +1,26 @@
 import Foundation
 
 /// A system shortcut to synthesize: zero or more modifiers plus at most one
-/// ordinary key, e.g. `rctrl+rshift`, `cmd+shift+4`, `f13`, `escape`.
+/// ordinary key, e.g. `rctrl+rshift`, `cmd+shift+4`, `f13`, `escape`,
+/// `volumeup`.
 ///
 /// Modifiers are kept in the order written, because that is the order they
 /// are pressed (and the reverse order they are released).
 public struct KeyChord: Equatable, CustomStringConvertible {
+    /// The keyboard's media keys. Raw values are the `NX_KEYTYPE_*` constants
+    /// carried in an `NX_SYSDEFINED` event; these keys have no virtual key code.
+    public enum MediaKey: Int32, Equatable {
+        case soundUp = 0
+        case soundDown = 1
+        case mute = 7
+        case play = 16
+        case next = 17
+        case previous = 18
+    }
+
     public struct Element: Equatable {
         public let name: String
-        /// macOS virtual key code (`kVK_*`, US layout).
+        /// macOS virtual key code (`kVK_*`, US layout). 0 for media keys.
         public let keyCode: UInt16
         public let isModifier: Bool
         /// `CGEventFlags` bit (shift/control/option/command/fn); 0 for plain keys.
@@ -16,6 +28,18 @@ public struct KeyChord: Equatable, CustomStringConvertible {
         /// Device-specific left/right bit (`NX_DEVICE*KEYMASK`); lets apps tell
         /// right-Ctrl from left-Ctrl. 0 for plain keys and `fn`.
         public let deviceFlag: UInt64
+        /// Set for media keys (volume, playback), which are synthesized as
+        /// system-defined events instead of keyboard events.
+        public let mediaKey: MediaKey?
+
+        public init(name: String, keyCode: UInt16, isModifier: Bool, flag: UInt64, deviceFlag: UInt64, mediaKey: MediaKey? = nil) {
+            self.name = name
+            self.keyCode = keyCode
+            self.isModifier = isModifier
+            self.flag = flag
+            self.deviceFlag = deviceFlag
+            self.mediaKey = mediaKey
+        }
     }
 
     public let modifiers: [Element]
@@ -152,10 +176,21 @@ public enum KeyTable {
         return t
     }()
 
+    /// Media keys, same spellings as the Windows build.
+    private static let media: [String: KeyChord.MediaKey] = [
+        "volumeup": .soundUp, "volumedown": .soundDown, "mute": .mute,
+        "playpause": .play, "nexttrack": .next, "prevtrack": .previous,
+    ]
+
     public static func modifier(named name: String) -> KeyChord.Element? { modifiers[name] }
 
     public static func key(named name: String) -> KeyChord.Element? {
-        guard let code = keys[name] else { return nil }
-        return KeyChord.Element(name: name, keyCode: code, isModifier: false, flag: 0, deviceFlag: 0)
+        if let code = keys[name] {
+            return KeyChord.Element(name: name, keyCode: code, isModifier: false, flag: 0, deviceFlag: 0)
+        }
+        if let media = media[name] {
+            return KeyChord.Element(name: name, keyCode: 0, isModifier: false, flag: 0, deviceFlag: 0, mediaKey: media)
+        }
+        return nil
     }
 }

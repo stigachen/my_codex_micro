@@ -164,6 +164,7 @@ Without the `r` prefix you get the left key.
 * `up`, `down`, `left`, `right`, `home`, `end`, `pageup`, `pagedown`
 * punctuation as the character itself: `-` `=` `[` `]` `\` `;` `'` `,` `.` `/` `` ` ``, or by name: `minus` `equal` `leftbracket` `rightbracket` `backslash` `semicolon` `quote` `comma` `period` `slash` `grave`
 * keypad: `keypad0`–`keypad9`, `keypadenter`, `keypadplus`, `keypadminus`, `keypadmultiply`, `keypaddivide`, `keypaddecimal`, `keypadequals`
+* media: `volumeup`, `volumedown`, `mute`, `playpause`, `nexttrack`, `prevtrack`. On macOS `shift+option+volumeup` gives the quarter-step change a real keyboard gives
 
 Key names refer to positions on the US layout.
 
@@ -178,7 +179,6 @@ Not supported: two regular keys in one shortcut.
 | `fn` | fn / 🌐 | not available; Windows has no synthesizable fn key |
 | `delete` / `backspace` | Backspace | Backspace (same meaning as on macOS) |
 | `forwarddelete` / `del` | forward delete | the Delete key |
-| `volumeup` `volumedown` `mute` `playpause` `nexttrack` `prevtrack` | not supported | supported |
 | `insert` `printscreen` `scrolllock` `pause` `numlock` `apps` | not supported | supported |
 
 Synthesizing keys needs no permission on Windows. The one limit: when MicroKeys runs unelevated, its keys cannot reach windows that run as administrator.
@@ -219,6 +219,21 @@ Agent Keys and the dial have no blank option in ChatGPT, so mapping them means b
   }
 }
 ```
+
+Volume on the dial, mute on its press:
+
+```json
+{
+  "version": 1,
+  "bindings": {
+    "DIAL_CW": "volumeup",
+    "DIAL_CC": "volumedown",
+    "DIAL":    "mute"
+  }
+}
+```
+
+For finer steps per detent use `shift+option+volumeup` / `shift+option+volumedown`.
 
 ## 8. Checking the config
 

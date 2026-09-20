@@ -22,6 +22,19 @@ import Testing
         #expect(try KeyChord.parse("fn").modifiers.first?.flag == KeyTable.flagFn)
     }
 
+    @Test func mediaKeys() throws {
+        let up = try KeyChord.parse("volumeup")
+        #expect(up.key?.mediaKey == .soundUp)
+        #expect(up.modifiers.isEmpty)
+        let fine = try KeyChord.parse("shift+option+volumedown")
+        #expect(fine.key?.mediaKey == .soundDown)
+        #expect(fine.modifiers.map(\.name) == ["shift", "option"])
+        #expect(try KeyChord.parse("mute").key?.mediaKey == .mute)
+        #expect(try KeyChord.parse("playpause").key?.mediaKey == .play)
+        #expect(try KeyChord.parse("f13").key?.mediaKey == nil)
+        #expect(throws: KeyChord.ParseError.tooManyKeys("volumeup", "volumedown")) { try KeyChord.parse("volumeup+volumedown") }
+    }
+
     @Test func errors() {
         #expect(throws: KeyChord.ParseError.empty) { try KeyChord.parse("") }
         #expect(throws: KeyChord.ParseError.emptyToken) { try KeyChord.parse("cmd++a") }
