@@ -68,6 +68,7 @@ internal static class S
     public static string LanguageZh => "简体中文";
     public static string LanguageEn => "English";
     public static string LoginItem => P("开机自动启动", "Launch at Login");
+    public static string About => P("关于 MicroKeys", "About MicroKeys");
     public static string Quit => P("退出 MicroKeys", "Quit MicroKeys");
     public static string TooltipRunning => P("MicroKeys：运行中", "MicroKeys: running");
     public static string TooltipProblem(string p) => P($"MicroKeys：{p}", $"MicroKeys: {p}");

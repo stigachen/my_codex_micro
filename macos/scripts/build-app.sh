@@ -25,7 +25,10 @@ if ! cmp -s "$GENERATED.tmp" "$GENERATED"; then mv "$GENERATED.tmp" "$GENERATED"
 
 ARCHS="${ARCHS:---arch arm64 --arch x86_64}"
 echo "▸ swift build -c release $ARCHS"
-swift build -c release $ARCHS 2>&1 | grep -v "ld: warning: search path" || true
+set -o pipefail
+if ! swift build -c release $ARCHS 2>&1 | { grep -v "ld: warning: search path" || true; }; then
+  echo "构建失败：swift build 返回错误" >&2; exit 1
+fi
 BIN="$(swift build -c release $ARCHS --show-bin-path)/MicroKeys"
 [ -x "$BIN" ] || { echo "构建失败：找不到 $BIN" >&2; exit 1; }
 
