@@ -10,6 +10,7 @@ public class StressTests
         public int Presses;
         public void Press(KeyChord chord) => Presses++;
         public void Release(KeyChord chord) { }
+        public void Type(string text) { }
     }
 
     /// <summary>A million events through decoder and mapper; managed heap must stay flat.</summary>

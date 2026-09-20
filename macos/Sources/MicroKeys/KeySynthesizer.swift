@@ -9,8 +9,9 @@ import MicroKeysCore
 /// Modifiers are sent as `flagsChanged` events carrying both the generic flag
 /// (e.g. control) and the device-specific left/right bit (e.g. right-control),
 /// which is what lets a dictation app distinguish `rctrl+rshift` from the
-/// left-hand pair. Requires the Accessibility permission; without it macOS
-/// silently drops the events.
+/// left-hand pair. Text is typed as Unicode key events, one character at a
+/// time, independent of the keyboard layout. Requires the Accessibility
+/// permission; without it macOS silently drops the events.
 final class CGKeySynthesizer: KeySynthesizing {
     private let source: CGEventSource? = {
         let s = CGEventSource(stateID: .hidSystemState)
@@ -42,6 +43,39 @@ final class CGKeySynthesizer: KeySynthesizing {
             let flags = remaining.reduce(UInt64(0)) { $0 | $1.flag | $1.deviceFlag }
             post(m, down: false, flags: flags)
         }
+    }
+
+    func type(_ text: String) {
+        for scalar in text.replacingOccurrences(of: "\r\n", with: "\n").unicodeScalars {
+            switch scalar {
+            case "\n", "\r": tapKey(0x24, name: "return")
+            case "\t": tapKey(0x30, name: "tab")
+            default:
+                var units = Array(String(scalar).utf16)
+                postUnicode(&units, down: true)
+                postUnicode(&units, down: false)
+            }
+        }
+    }
+
+    private func tapKey(_ code: UInt16, name: String) {
+        let element = KeyChord.Element(name: name, keyCode: code, isModifier: false, flag: 0, deviceFlag: 0)
+        post(element, down: true, flags: 0)
+        post(element, down: false, flags: 0)
+    }
+
+    /// A key event whose meaning is the attached Unicode string rather than
+    /// its key code; apps take the text from the event directly.
+    private func postUnicode(_ units: inout [UInt16], down: Bool) {
+        guard let event = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: down) else {
+            Log.error("CGEvent create failed: unicode")
+            return
+        }
+        event.keyboardSetUnicodeString(stringLength: units.count, unicodeString: &units)
+        event.setIntegerValueField(.eventSourceUnixProcessID, value: 0)
+        event.setIntegerValueField(.keyboardEventKeyboardType, value: Int64(LMGetKbdType()))
+        event.post(tap: .cghidEventTap)
+        if intervalMs > 0 { usleep(useconds_t(intervalMs) * 1000) }
     }
 
     private func post(_ element: KeyChord.Element, down: Bool, flags: UInt64) {

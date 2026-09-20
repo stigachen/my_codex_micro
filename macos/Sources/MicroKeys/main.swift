@@ -18,7 +18,7 @@ func runCLI(_ args: [String]) -> Int32? {
             let config = try Config.load(url: url)
             print(L10n.pick("配置正常：\(url.path)", "Config OK: \(url.path)"))
             for b in config.bindings.values.sorted(by: { $0.keyID < $1.keyID }) {
-                print("  \(b.keyID) → \(b.chord)  [\(b.mode.rawValue)]")
+                print("  \(b.keyID) → \(b.target)  [\(b.mode.rawValue)]")
             }
             return 0
         } catch {

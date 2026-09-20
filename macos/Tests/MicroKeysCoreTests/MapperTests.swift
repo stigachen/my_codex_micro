@@ -6,6 +6,7 @@ final class Recorder: KeySynthesizing {
     var log: [String] = []
     func press(_ chord: KeyChord) { log.append("down \(chord)") }
     func release(_ chord: KeyChord) { log.append("up \(chord)") }
+    func type(_ text: String) { log.append("type \(text)") }
 }
 
 private func mapper(_ json: String) throws -> (Mapper, Recorder) {
@@ -50,6 +51,19 @@ private func mapper(_ json: String) throws -> (Mapper, Recorder) {
         m.handle(.key(id: "ACT10", act: 0))
         #expect(rec.log == ["down f13", "up f13", "down rctrl+rshift", "up rctrl+rshift"])
         #expect(seen == ["ACT11 1", "ACT11 0", "ACT10 1", "ACT10 0"])
+    }
+
+    @Test func typeModeTypesOnKeyDownOnly() throws {
+        let (m, rec) = try mapper(#"{"bindings": {"ACT06": {"mode": "type", "text": "abc"}, "ENC_CW": {"mode": "type", "text": "x"}}}"#)
+        var fired: [String] = []
+        m.onFire = { b, down in fired.append("\(b.target) \(down)") }
+        m.handle(.key(id: "ACT06", act: 1))
+        m.handle(.key(id: "ACT06", act: 0))
+        #expect(rec.log == ["type abc"])
+        #expect(m.heldKeys == [])
+        m.handle(.key(id: "ENC_CW", act: 2))   // rotation: any act
+        #expect(rec.log == ["type abc", "type x"])
+        #expect(fired == ["\"abc\" true", "\"x\" true"])
     }
 
     @Test func tapFiresOnDownOnly() throws {

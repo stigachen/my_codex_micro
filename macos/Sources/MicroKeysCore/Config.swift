@@ -6,17 +6,43 @@ public enum BindingMode: String, Equatable {
     /// Press the shortcut on key-down and hold it until key-up. This is what a
     /// push-to-talk / dictation shortcut wants.
     case hold
+    /// Type a string on key-down, character by character, as Unicode input.
+    case type
 }
 
 public struct Binding: Equatable {
     public let keyID: String
     public let mode: BindingMode
-    public let chord: KeyChord
+    /// The shortcut, for `tap` and `hold`. Nil in `type` mode.
+    public let chord: KeyChord?
+    /// The string to type, for `type` mode. Nil otherwise.
+    public let text: String?
 
     public init(keyID: String, mode: BindingMode, chord: KeyChord) {
         self.keyID = keyID
         self.mode = mode
         self.chord = chord
+        self.text = nil
+    }
+
+    public init(keyID: String, text: String) {
+        self.keyID = keyID
+        self.mode = .type
+        self.chord = nil
+        self.text = text
+    }
+
+    /// What the binding sends, for menus and logs: the shortcut as written,
+    /// or the text in quotes with line breaks and tabs shown as `\n` / `\t`.
+    public var target: String {
+        if let chord { return chord.text }
+        let shown = (text ?? "")
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\r\n", with: "\\n")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+            .replacingOccurrences(of: "\t", with: "\\t")
+        return "\"\(shown)\""
     }
 }
 
@@ -136,18 +162,38 @@ public struct Config: Equatable {
                 if let previous = origin[keyID] { throw ConfigError.duplicateKey(previous, name) }
                 origin[keyID] = name
 
-                let (modeText, keysText) = try unpack(value, key: name)
+                let (modeText, keysText, textValue) = try unpack(value, key: name)
                 guard let mode = BindingMode(rawValue: modeText.lowercased()) else {
-                    throw ConfigError.badBinding(key: name, reason: L10n.pick("mode 只能是 \"tap\" 或 \"hold\"，不是 '\(modeText)'", "mode must be \"tap\" or \"hold\", not '\(modeText)'"))
+                    throw ConfigError.badBinding(key: name, reason: L10n.pick("mode 只能是 \"tap\"、\"hold\" 或 \"type\"，不是 '\(modeText)'", "mode must be \"tap\", \"hold\" or \"type\", not '\(modeText)'"))
                 }
-                if mode == .hold, KeyID.isRotation(keyID) { throw ConfigError.holdOnRotation(name) }
-                let chord: KeyChord
-                do {
-                    chord = try KeyChord.parse(keysText)
-                } catch {
-                    throw ConfigError.badShortcut(key: name, reason: "\(error)")
+                switch mode {
+                case .type:
+                    guard let text = textValue else {
+                        throw ConfigError.badBinding(key: name, reason: L10n.pick("\"type\" 模式需要 \"text\" 字段（要打出的文字）", "\"type\" mode needs \"text\" (the string to type)"))
+                    }
+                    if keysText != nil {
+                        throw ConfigError.badBinding(key: name, reason: L10n.pick("\"type\" 模式用 \"text\"，不能再写 \"keys\"", "\"type\" mode takes \"text\", not \"keys\""))
+                    }
+                    if text.isEmpty {
+                        throw ConfigError.badBinding(key: name, reason: L10n.pick("\"text\" 不能为空", "\"text\" must not be empty"))
+                    }
+                    bindings[keyID] = Binding(keyID: keyID, text: text)
+                case .tap, .hold:
+                    if textValue != nil {
+                        throw ConfigError.badBinding(key: name, reason: L10n.pick("\"text\" 只能配 \"mode\": \"type\"", "\"text\" only goes with \"mode\": \"type\""))
+                    }
+                    guard let keysText else {
+                        throw ConfigError.badBinding(key: name, reason: L10n.pick("缺少 \"keys\" 字段（要绑定的系统快捷键）", "missing \"keys\" (the system shortcut to send)"))
+                    }
+                    if mode == .hold, KeyID.isRotation(keyID) { throw ConfigError.holdOnRotation(name) }
+                    let chord: KeyChord
+                    do {
+                        chord = try KeyChord.parse(keysText)
+                    } catch {
+                        throw ConfigError.badShortcut(key: name, reason: "\(error)")
+                    }
+                    bindings[keyID] = Binding(keyID: keyID, mode: mode, chord: chord)
                 }
-                bindings[keyID] = Binding(keyID: keyID, mode: mode, chord: chord)
             }
         }
         return Config(bindings: bindings, options: options)
@@ -157,17 +203,23 @@ public struct Config: Equatable {
         try parse(Data(contentsOf: url))
     }
 
-    /// A binding is either a bare string (tap mode) or `{ "mode": …, "keys": … }`.
-    private static func unpack(_ value: Any, key: String) throws -> (mode: String, keys: String) {
-        if let text = value as? String { return ("tap", text) }
+    /// A binding is either a bare string (tap mode), `{ "mode": …, "keys": … }`,
+    /// or `{ "mode": "type", "text": … }`. Which of `keys` / `text` is required
+    /// depends on the mode and is checked by the caller.
+    private static func unpack(_ value: Any, key: String) throws -> (mode: String, keys: String?, text: String?) {
+        if let text = value as? String { return ("tap", text, nil) }
         guard let dict = value as? [String: Any] else {
             throw ConfigError.badBinding(key: key, reason: L10n.pick("必须是快捷键字符串，或 { \"mode\": …, \"keys\": … } 对象", "must be a shortcut string or a { \"mode\": …, \"keys\": … } object"))
         }
-        guard let keys = dict["keys"] as? String else {
-            throw ConfigError.badBinding(key: key, reason: L10n.pick("缺少 \"keys\" 字段（要绑定的系统快捷键）", "missing \"keys\" (the system shortcut to send)"))
+        func string(_ field: String) throws -> String? {
+            guard let raw = dict[field] else { return nil }
+            guard let s = raw as? String else {
+                throw ConfigError.badBinding(key: key, reason: L10n.pick("\"\(field)\" 必须是字符串", "\"\(field)\" must be a string"))
+            }
+            return s
         }
-        let mode = dict["mode"] as? String ?? "tap"
-        return (mode, keys)
+        let mode = try string("mode") ?? "tap"
+        return (mode, try string("keys"), try string("text"))
     }
 
     /// The config written on first launch.

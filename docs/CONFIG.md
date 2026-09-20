@@ -62,7 +62,7 @@ MicroKeys 用一个 JSON 文件描述「Codex Micro 上的哪个键 → 系统�
 
 JSON 本身不支持 `//` 注释，想写备注就用 `"_comment": "..."`。
 
-### 每个绑定的两种写法
+### 每个绑定的写法
 
 **简写**：直接给快捷键字符串，等价于单击（`tap`）模式。
 
@@ -76,14 +76,28 @@ JSON 本身不支持 `//` 注释，想写备注就用 `"_comment": "..."`。
 "ACT06": { "mode": "tap", "keys": "cmd+shift+4", "_comment": "截图" }
 ```
 
-### 两种模式
+**输入文字**：`type` 模式用 `text` 字段代替 `keys`。
+
+```json
+"ACT07": { "mode": "type", "text": "abc" }
+```
+
+### 三种模式
 
 | mode | 行为 | 适合 |
 |---|---|---|
 | `tap`（默认） | 键按下的瞬间，把快捷键按一下就松开 | 绝大多数快捷键：截图、切换应用、打开某个面板 |
 | `hold` | 键按下时按下快捷键，键松开时才松开 | 按住说话、按住临时显示某个窗口、把某个键当修饰键用 |
+| `type` | 键按下的瞬间，把 `text` 里的文字逐字打出来 | 常用短语、邮箱地址、固定的一句提示词 |
 
-旋钮的转动（`ENC_CW` / `ENC_CC`）没有「松开」事件，所以只能用 `tap`，写 `hold` 会报错。
+`type` 模式的说明：
+
+* 用 `text` 字段，不能再写 `keys`；`text` 不能为空。`text` 不写 `mode` 不会自动变成 `type`，默认仍是 `tap`，会报错提醒。
+* 文字按 Unicode 逐字注入，不依赖键盘布局和输入法，中文、表情都可以直接写。
+* `\n` 打出回车，`\t` 打出 Tab；其他字符原样输出。
+* 每个字符之间的间隔也受 `key_interval_ms` 控制，长文本想快一点可以把它调小。
+
+旋钮的转动（`ENC_CW` / `ENC_CC`）没有「松开」事件，所以只能用 `tap` 或 `type`，写 `hold` 会报错。
 
 ## 4. 按键 id
 
@@ -215,6 +229,7 @@ Agent 键和旋钮在 ChatGPT 里没有「空白」选项，把它们映射成�
     "MIC":     { "mode": "hold", "keys": "rctrl+rshift", "_comment": "按住说话" },
     "ACT06":   "cmd+shift+4",
     "ACT07":   { "mode": "tap",  "keys": "ctrl+cmd+space", "_comment": "表情面板" },
+    "ACT08":   { "mode": "type", "text": "请用中文回答。", "_comment": "打出一句固定的提示词" },
     "ACT12":   { "mode": "hold", "keys": "cmd", "_comment": "按住时相当于按住 ⌘，可以配合鼠标点击" },
     "DIAL":    "cmd+shift+a",
     "DIAL_CW": "cmd+=",

@@ -60,7 +60,7 @@ That is what push-to-talk dictation apps expect.
 
 JSON has no `//` comments; use `"_comment": "..."` instead.
 
-### Two ways to write a binding
+### Ways to write a binding
 
 **Short form**: a shortcut string, which means tap mode.
 
@@ -74,14 +74,28 @@ JSON has no `//` comments; use `"_comment": "..."` instead.
 "ACT06": { "mode": "tap", "keys": "cmd+shift+4", "_comment": "screenshot" }
 ```
 
-### The two modes
+**Typing text**: `type` mode takes a `text` field instead of `keys`.
+
+```json
+"ACT07": { "mode": "type", "text": "abc" }
+```
+
+### The three modes
 
 | mode | Behaviour | Good for |
 |---|---|---|
 | `tap` (default) | press and release the shortcut the moment the key goes down | almost everything: screenshots, switching apps, opening a panel |
 | `hold` | press the shortcut on key-down, release it on key-up | push-to-talk, holding a window, using a pad key as a modifier |
+| `type` | type the string in `text`, character by character, the moment the key goes down | canned phrases, an email address, a fixed prompt |
 
-Dial rotation (`ENC_CW` / `ENC_CC`) has no release event, so it only supports `tap`; `hold` is rejected.
+Notes on `type`:
+
+* It takes `text`, never `keys`, and `text` must not be empty. A `text` field without `mode` does not switch to `type`: the default stays `tap`, and you get an error saying so.
+* Text is injected as Unicode, character by character, independent of keyboard layout and input method; any script or emoji works.
+* `\n` types Return and `\t` types Tab; everything else is sent as is.
+* The pause between characters follows `key_interval_ms`; lower it for long strings.
+
+Dial rotation (`ENC_CW` / `ENC_CC`) has no release event, so it supports `tap` and `type` only; `hold` is rejected.
 
 ## 4. Key ids
 
@@ -212,6 +226,7 @@ Agent Keys and the dial have no blank option in ChatGPT, so mapping them means b
     "MIC":     { "mode": "hold", "keys": "rctrl+rshift", "_comment": "push to talk" },
     "ACT06":   "cmd+shift+4",
     "ACT07":   { "mode": "tap",  "keys": "ctrl+cmd+space", "_comment": "emoji picker" },
+    "ACT08":   { "mode": "type", "text": "Answer in English.", "_comment": "types a fixed prompt" },
     "ACT12":   { "mode": "hold", "keys": "cmd", "_comment": "acts as ⌘ while held, for click-modifiers" },
     "DIAL":    "cmd+shift+a",
     "DIAL_CW": "cmd+=",

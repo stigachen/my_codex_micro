@@ -55,7 +55,7 @@ internal static class Program
                     var config = Config.Load(path);
                     Console.WriteLine(L10n.Pick($"配置正常：{path}", $"Config OK: {path}"));
                     foreach (var b in config.Bindings.Values.OrderBy(b => b.KeyId, StringComparer.Ordinal))
-                        Console.WriteLine($"  {b.KeyId} → {b.Chord}  [{b.Mode.ToString().ToLowerInvariant()}]");
+                        Console.WriteLine($"  {b.KeyId} → {b.Target}  [{b.Mode.ToString().ToLowerInvariant()}]");
                     return 0;
                 }
                 catch (Exception e) when (e is ConfigException or IOException)

@@ -31,7 +31,7 @@ enum S {
     case transportBluetooth
     case inputMonitoringOK, inputMonitoringMissing, accessibilityOK, accessibilityMissing
     case configError(String), configNoBindings, configCount(Int)
-    case modeHold, modeTap
+    case modeHold, modeTap, modeType
     case lastKey(String), lastFire(String), noKeyYet, noFireYet
     case pressed, released, turned, holding, letGo
     case openConfig, reloadConfig, openDocs, openLog
@@ -60,6 +60,7 @@ enum S {
         case .configCount(let n): return zh ? "配置：\(n) 个绑定" : "Config: \(n) binding\(n == 1 ? "" : "s")"
         case .modeHold: return zh ? "按住" : "hold"
         case .modeTap: return zh ? "单击" : "tap"
+        case .modeType: return zh ? "输入文字" : "type"
         case .lastKey(let k): return zh ? "最近按键：\(k)" : "Last key: \(k)"
         case .lastFire(let f): return zh ? "最近触发：\(f)" : "Last fired: \(f)"
         case .noKeyYet: return zh ? "（还没有按过键）" : "(nothing yet)"

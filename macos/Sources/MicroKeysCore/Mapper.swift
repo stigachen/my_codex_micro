@@ -5,6 +5,8 @@ import Foundation
 public protocol KeySynthesizing: AnyObject {
     func press(_ chord: KeyChord)
     func release(_ chord: KeyChord)
+    /// Type a string as Unicode input, character by character.
+    func type(_ text: String)
 }
 
 /// Routes pad events to shortcuts according to the config.
@@ -15,6 +17,7 @@ public protocol KeySynthesizing: AnyObject {
 /// * Dial rotation (`ENC_CW` / `ENC_CC`) fires on any `act`, because a detent
 ///   is momentary and its `act` value is not reliably 1.
 /// * Real keys fire on `act == 1`; `hold` bindings are released on `act == 0`.
+/// * `type` bindings type their text on `act == 1` and hold nothing.
 /// * Anything held is released when the config changes, the pad disconnects,
 ///   or the app quits, so a modifier can never be left stuck down.
 public final class Mapper {
@@ -43,18 +46,18 @@ public final class Mapper {
         guard let binding = config.bindings[id] else { return }
 
         if KeyID.isRotation(id) {
-            tap(binding)
+            fire(binding)
             return
         }
         switch act {
         case 1:
             switch binding.mode {
-            case .tap:
-                tap(binding)
+            case .tap, .type:
+                fire(binding)
             case .hold:
-                guard held[id] == nil else { return }  // already down; ignore repeats
-                held[id] = binding.chord
-                synth.press(binding.chord)
+                guard held[id] == nil, let chord = binding.chord else { return }  // already down; ignore repeats
+                held[id] = chord
+                synth.press(chord)
                 onFire?(binding, true)
             }
         case 0:
@@ -72,9 +75,16 @@ public final class Mapper {
         held.removeAll()
     }
 
-    private func tap(_ binding: Binding) {
-        synth.press(binding.chord)
-        synth.release(binding.chord)
+    /// One-shot bindings: tap the chord, or type the text.
+    private func fire(_ binding: Binding) {
+        if let text = binding.text {
+            synth.type(text)
+        } else if let chord = binding.chord {
+            synth.press(chord)
+            synth.release(chord)
+        } else {
+            return
+        }
         onFire?(binding, true)
     }
 }

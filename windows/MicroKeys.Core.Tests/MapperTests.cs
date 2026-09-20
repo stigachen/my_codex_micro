@@ -56,6 +56,21 @@ public class MapperTests
     }
 
     [Fact]
+    public void TypeModeTypesOnKeyDownOnly()
+    {
+        var (m, rec) = Make("""{"bindings": {"ACT06": {"mode": "type", "text": "abc"}, "ENC_CW": {"mode": "type", "text": "x"}}}""");
+        var fired = new List<string>();
+        m.Fired += (b, down) => fired.Add($"{b.Target} {down}");
+        m.Handle(new PadEvent.Key("ACT06", 1));
+        m.Handle(new PadEvent.Key("ACT06", 0));
+        Assert.Equal(new[] { "type abc" }, rec.Log);
+        Assert.Empty(m.HeldKeys);
+        m.Handle(new PadEvent.Key("ENC_CW", 2));   // rotation: any act
+        Assert.Equal(new[] { "type abc", "type x" }, rec.Log);
+        Assert.Equal(new[] { "\"abc\" True", "\"x\" True" }, fired);
+    }
+
+    [Fact]
     public void TapFiresOnDownOnly()
     {
         var (m, rec) = Make("""{"bindings": {"ACT06": "ctrl+shift+4"}}""");

@@ -41,7 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         mapper.onFire = { [weak self] binding, down in
             let suffix = binding.mode == .hold ? (down ? S.holding.text : S.letGo.text) : ""
-            self?.lastFire = "\(binding.keyID) → \(binding.chord)\(suffix)"
+            self?.lastFire = "\(binding.keyID) → \(binding.target)\(suffix)"
         }
 
         pad.onEvent = { [weak self] event in self?.mapper.handle(event) }
@@ -130,8 +130,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             add((count == 0 ? S.configNoBindings : S.configCount(count)).text, enabled: false)
             for binding in mapper.config.bindings.values.sorted(by: { $0.keyID < $1.keyID }) {
                 let label = binding.keyID == "ACT10" ? "ACT10 (MIC)" : binding.keyID
-                let mode = (binding.mode == .hold ? S.modeHold : S.modeTap).text
-                add("    \(label) → \(binding.chord)  [\(mode)]", enabled: false)
+                let mode: S
+                switch binding.mode {
+                case .hold: mode = .modeHold
+                case .type: mode = .modeType
+                case .tap: mode = .modeTap
+                }
+                add("    \(label) → \(binding.target)  [\(mode.text)]", enabled: false)
             }
         }
         add(S.lastKey(lastKey ?? S.noKeyYet.text).text, enabled: false)

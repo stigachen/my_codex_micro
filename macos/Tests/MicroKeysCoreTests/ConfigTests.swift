@@ -13,13 +13,13 @@ private func message(_ json: String) -> String {
         let c = try Config.parse(Data(Config.exampleJSON.utf8))
         #expect(c.bindings.count == 1)
         #expect(c.bindings["ACT10"]?.mode == .hold)
-        #expect(c.bindings["ACT10"]?.chord.text == "rctrl+rshift")
+        #expect(c.bindings["ACT10"]?.chord?.text == "rctrl+rshift")
     }
 
     @Test func stringShorthandIsTapAndAliasesResolve() throws {
         let c = try parse(#"{"bindings": {"act06": "cmd+shift+4", "dial_cw": "up", "Mic": {"keys": "f13"}}}"#)
         #expect(c.bindings["ACT06"]?.mode == .tap)
-        #expect(c.bindings["ENC_CW"]?.chord.key?.keyCode == 0x7E)
+        #expect(c.bindings["ENC_CW"]?.chord?.key?.keyCode == 0x7E)
         #expect(c.bindings["ACT10"]?.mode == .tap)
     }
 
@@ -34,16 +34,34 @@ private func message(_ json: String) -> String {
     @Test func splitMicKeyMakesACT11ItsOwnKey() throws {
         // Default: ACT11 folds into ACT10, and the error points at the option.
         let folded = try parse(#"{"bindings": {"act11": "f13"}}"#)
-        #expect(folded.bindings["ACT10"]?.chord.text == "f13")
+        #expect(folded.bindings["ACT10"]?.chord?.text == "f13")
         #expect(folded.bindings["ACT11"] == nil)
         #expect(message(#"{"bindings": {"ACT10": "a", "ACT11": "b"}}"#).contains("split_mic_key"))
         #expect(!message(#"{"bindings": {"MIC": "a", "ACT10": "b"}}"#).contains("split_mic_key"))
 
         // Split: both halves bind separately; MIC still means ACT10.
         let split = try parse(#"{"options": {"split_mic_key": true}, "bindings": {"MIC": "a", "ACT11": {"mode": "hold", "keys": "b"}}}"#)
-        #expect(split.bindings["ACT10"]?.chord.text == "a")
+        #expect(split.bindings["ACT10"]?.chord?.text == "a")
         #expect(split.bindings["ACT11"]?.mode == .hold)
         #expect(message(#"{"options": {"split_mic_key": true}, "bindings": {"MIC": "a", "ACT10": "b"}}"#).contains("MIC"))
+    }
+
+    @Test func typeMode() throws {
+        let c = try parse(#"{"bindings": {"ACT06": {"mode": "type", "text": "abc"}, "DIAL_CW": {"mode": "TYPE", "text": "你好\n"}}}"#)
+        #expect(c.bindings["ACT06"]?.mode == .type)
+        #expect(c.bindings["ACT06"]?.text == "abc")
+        #expect(c.bindings["ACT06"]?.chord == nil)
+        #expect(c.bindings["ACT06"]?.target == "\"abc\"")
+        #expect(c.bindings["ENC_CW"]?.text == "你好\n")
+        #expect(c.bindings["ENC_CW"]?.target == #""你好\n""#)
+
+        #expect(message(#"{"bindings": {"ACT06": {"mode": "type"}}}"#).contains("text"))
+        #expect(message(#"{"bindings": {"ACT06": {"mode": "type", "text": ""}}}"#).contains("text"))
+        #expect(message(#"{"bindings": {"ACT06": {"mode": "type", "text": "a", "keys": "b"}}}"#).contains("keys"))
+        #expect(message(#"{"bindings": {"ACT06": {"mode": "type", "text": 5}}}"#).contains("text"))
+        // "text" without mode: the default is still tap, so this is an error that points at "type".
+        #expect(message(#"{"bindings": {"ACT06": {"text": "abc"}}}"#).contains("type"))
+        #expect(message(#"{"bindings": {"ACT06": {"mode": "hold", "text": "abc"}}}"#).contains("type"))
     }
 
     @Test func errorsNameTheKey() {
