@@ -5,13 +5,16 @@ public interface IKeySynthesizer
 {
     void Press(KeyChord chord);
     void Release(KeyChord chord);
+    /// <summary>Type a string as Unicode input, character by character.</summary>
+    void Type(string text);
 }
 
 /// <summary>
 /// Routes pad events to shortcuts according to the config.
 /// ACT11 (second half of the MIC cap) counts as ACT10 unless options.split_mic_key
 /// makes it a key of its own. Dial rotation fires on any
-/// act. Real keys fire on act 1; hold bindings release on act 0. Anything held
+/// act. Real keys fire on act 1; hold bindings release on act 0; type bindings
+/// type their text on act 1 and hold nothing. Anything held
 /// is released when the config changes or <see cref="ReleaseAll"/> is called,
 /// so a modifier can never be left stuck down.
 /// </summary>
@@ -48,12 +51,12 @@ public sealed class Mapper
         KeyObserved?.Invoke(id, key.Act);
         if (!_config.Bindings.TryGetValue(id, out var binding)) return;
 
-        if (KeyId.IsRotation(id)) { Tap(binding); return; }
+        if (KeyId.IsRotation(id)) { Fire(binding); return; }
         switch (key.Act)
         {
             case 1:
-                if (binding.Mode == BindingMode.Tap) { Tap(binding); break; }
-                if (_held.ContainsKey(id)) break;  // already down; ignore repeats
+                if (binding.Mode != BindingMode.Hold) { Fire(binding); break; }
+                if (_held.ContainsKey(id) || binding.Chord is null) break;  // already down; ignore repeats
                 _held[id] = binding.Chord;
                 _synth.Press(binding.Chord);
                 Fired?.Invoke(binding, true);
@@ -74,10 +77,12 @@ public sealed class Mapper
         _held.Clear();
     }
 
-    private void Tap(Binding binding)
+    /// <summary>One-shot bindings: tap the chord, or type the text.</summary>
+    private void Fire(Binding binding)
     {
-        _synth.Press(binding.Chord);
-        _synth.Release(binding.Chord);
+        if (binding.Text is { } text) _synth.Type(text);
+        else if (binding.Chord is { } chord) { _synth.Press(chord); _synth.Release(chord); }
+        else return;
         Fired?.Invoke(binding, true);
     }
 }

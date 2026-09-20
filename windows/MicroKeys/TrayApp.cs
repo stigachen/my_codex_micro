@@ -41,7 +41,7 @@ internal sealed class TrayApp : ApplicationContext
         _store.StartWatching();
 
         _mapper.KeyObserved += (id, act) => _lastKey = $"{id} {(act == 1 ? S.Pressed : act == 0 ? S.Released : S.Turned)}";
-        _mapper.Fired += (b, down) => _lastFire = $"{b.KeyId} → {b.Chord}{(b.Mode == BindingMode.Hold ? (down ? S.Holding : S.LetGo) : "")}";
+        _mapper.Fired += (b, down) => _lastFire = $"{b.KeyId} → {b.Target}{(b.Mode == BindingMode.Hold ? (down ? S.Holding : S.LetGo) : "")}";
 
         _pad = new PadMonitor(SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext());
         _pad.EventReceived += e => _mapper.Handle(e);
@@ -93,7 +93,8 @@ internal sealed class TrayApp : ApplicationContext
             foreach (var b in _mapper.Config.Bindings.Values.OrderBy(b => b.KeyId, StringComparer.Ordinal))
             {
                 var label = b.KeyId == "ACT10" ? "ACT10 (MIC)" : b.KeyId;
-                Add($"    {label} → {b.Chord}  [{(b.Mode == BindingMode.Hold ? S.ModeHold : S.ModeTap)}]", enabled: false);
+                var mode = b.Mode switch { BindingMode.Hold => S.ModeHold, BindingMode.Type => S.ModeType, _ => S.ModeTap };
+                Add($"    {label} → {b.Target}  [{mode}]", enabled: false);
             }
         }
         Add(S.LastKey(_lastKey ?? S.NoKeyYet), enabled: false);

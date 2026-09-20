@@ -1,6 +1,6 @@
 # MicroKeys
 
-把 OpenAI **Codex Micro** 键盘上的任意按键映射成系统快捷键的常驻小应用，macOS 菜单栏版和 Windows 托盘版共用一份配置。
+把 OpenAI **Codex Micro** 键盘上的任意按键映射成系统快捷键或一段文字的常驻小应用，macOS 菜单栏版和 Windows 托盘版共用一份配置。
 和 ChatGPT / Codex 桌面端**并存**：键盘照常配合 Codex 使用，多出来的几个键交给 MicroKeys。
 
 典型用法：语音键 → 按住 `右Ctrl + 右Shift`，给 Wispr Flow / Superwhisper 这类按住说话的听写软件用。

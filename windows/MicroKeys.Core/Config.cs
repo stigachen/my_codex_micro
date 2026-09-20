@@ -8,9 +8,16 @@ public enum BindingMode
     Tap,
     /// <summary>Press on key-down, hold until key-up. What push-to-talk wants.</summary>
     Hold,
+    /// <summary>Type a string on key-down, character by character, as Unicode input.</summary>
+    Type,
 }
 
-public sealed record Binding(string KeyId, BindingMode Mode, KeyChord Chord);
+/// <summary>One binding. <paramref name="Chord"/> is set for tap/hold, <paramref name="Text"/> for type.</summary>
+public sealed record Binding(string KeyId, BindingMode Mode, KeyChord? Chord, string? Text = null)
+{
+    /// <summary>What the binding sends, for menus and logs: the shortcut as written, or the text in quotes.</summary>
+    public string Target => Chord?.Text ?? $"\"{Text}\"";
+}
 
 public sealed class Options
 {
@@ -110,14 +117,30 @@ public sealed class Config
                     }
                     origin[keyId] = name;
 
-                    var (modeText, keysText) = Unpack(prop.Value, name);
+                    var (modeText, keysText, textValue) = Unpack(prop.Value, name);
                     var mode = modeText.ToLowerInvariant() switch
                     {
                         "tap" => BindingMode.Tap,
                         "hold" => BindingMode.Hold,
-                        _ => throw new ConfigException(L10n.Pick($"按键 '{name}' 的绑定写法有误：mode 只能是 \"tap\" 或 \"hold\"，不是 '{modeText}'",
-                            $"binding for '{name}' is malformed: mode must be \"tap\" or \"hold\", not '{modeText}'")),
+                        "type" => BindingMode.Type,
+                        _ => throw new ConfigException(L10n.Pick($"按键 '{name}' 的绑定写法有误：mode 只能是 \"tap\"、\"hold\" 或 \"type\"，不是 '{modeText}'",
+                            $"binding for '{name}' is malformed: mode must be \"tap\", \"hold\" or \"type\", not '{modeText}'")),
                     };
+                    if (mode == BindingMode.Type)
+                    {
+                        if (textValue is null)
+                            throw Malformed(name, "\"type\" 模式需要 \"text\" 字段（要打出的文字）", "\"type\" mode needs \"text\" (the string to type)");
+                        if (keysText is not null)
+                            throw Malformed(name, "\"type\" 模式用 \"text\"，不能再写 \"keys\"", "\"type\" mode takes \"text\", not \"keys\"");
+                        if (textValue.Length == 0)
+                            throw Malformed(name, "\"text\" 不能为空", "\"text\" must not be empty");
+                        bindings[keyId] = new Binding(keyId, mode, null, textValue);
+                        continue;
+                    }
+                    if (textValue is not null)
+                        throw Malformed(name, "\"text\" 只能配 \"mode\": \"type\"", "\"text\" only goes with \"mode\": \"type\"");
+                    if (keysText is null)
+                        throw Malformed(name, "缺少 \"keys\" 字段（要绑定的系统快捷键）", "missing \"keys\" (the system shortcut to send)");
                     if (mode == BindingMode.Hold && KeyId.IsRotation(keyId))
                         throw new ConfigException(L10n.Pick($"'{name}' 是旋钮转动，没有抬起事件，不能用 \"hold\" 模式",
                             $"'{name}' is a dial turn with no release event, so \"hold\" mode is not possible"));
@@ -136,18 +159,26 @@ public sealed class Config
 
     public static Config Load(string path) => Parse(File.ReadAllText(path));
 
-    /// <summary>A binding is either a bare string (tap mode) or { "mode": …, "keys": … }.</summary>
-    private static (string mode, string keys) Unpack(JsonElement value, string key)
+    private static ConfigException Malformed(string key, string zh, string en) =>
+        new(L10n.Pick($"按键 '{key}' 的绑定写法有误：{zh}", $"binding for '{key}' is malformed: {en}"));
+
+    /// <summary>A binding is either a bare string (tap mode), { "mode": …, "keys": … }, or
+    /// { "mode": "type", "text": … }. Which of keys / text is required depends on the mode
+    /// and is checked by the caller.</summary>
+    private static (string mode, string? keys, string? text) Unpack(JsonElement value, string key)
     {
-        if (value.ValueKind == JsonValueKind.String) return ("tap", value.GetString()!);
+        if (value.ValueKind == JsonValueKind.String) return ("tap", value.GetString()!, null);
         if (value.ValueKind != JsonValueKind.Object)
-            throw new ConfigException(L10n.Pick($"按键 '{key}' 的绑定写法有误：必须是快捷键字符串，或 {{ \"mode\": …, \"keys\": … }} 对象",
-                $"binding for '{key}' is malformed: must be a shortcut string or a {{ \"mode\": …, \"keys\": … }} object"));
-        if (!value.TryGetProperty("keys", out var k) || k.ValueKind != JsonValueKind.String)
-            throw new ConfigException(L10n.Pick($"按键 '{key}' 的绑定写法有误：缺少 \"keys\" 字段（要绑定的系统快捷键）",
-                $"binding for '{key}' is malformed: missing \"keys\" (the system shortcut to send)"));
-        var mode = value.TryGetProperty("mode", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString()! : "tap";
-        return (mode, k.GetString()!);
+            throw Malformed(key, "必须是快捷键字符串，或 { \"mode\": …, \"keys\": … } 对象",
+                "must be a shortcut string or a { \"mode\": …, \"keys\": … } object");
+        string? String(string field)
+        {
+            if (!value.TryGetProperty(field, out var v)) return null;
+            if (v.ValueKind != JsonValueKind.String)
+                throw Malformed(key, $"\"{field}\" 必须是字符串", $"\"{field}\" must be a string");
+            return v.GetString()!;
+        }
+        return (String("mode") ?? "tap", String("keys"), String("text"));
     }
 
     /// <summary>The config written on first launch.</summary>

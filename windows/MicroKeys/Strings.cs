@@ -49,6 +49,7 @@ internal static class S
     public static string ConfigCount(int n) => P($"配置：{n} 个绑定", $"Config: {n} binding{(n == 1 ? "" : "s")}");
     public static string ModeHold => P("按住", "hold");
     public static string ModeTap => P("单击", "tap");
+    public static string ModeType => P("输入文字", "type");
     public static string LastKey(string k) => P($"最近按键：{k}", $"Last key: {k}");
     public static string LastFire(string f) => P($"最近触发：{f}", $"Last fired: {f}");
     public static string NoKeyYet => P("（还没有按过键）", "(nothing yet)");

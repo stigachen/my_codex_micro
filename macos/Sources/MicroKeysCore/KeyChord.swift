@@ -16,6 +16,14 @@ public struct KeyChord: Equatable, CustomStringConvertible {
         /// Device-specific left/right bit (`NX_DEVICE*KEYMASK`); lets apps tell
         /// right-Ctrl from left-Ctrl. 0 for plain keys and `fn`.
         public let deviceFlag: UInt64
+
+        public init(name: String, keyCode: UInt16, isModifier: Bool, flag: UInt64, deviceFlag: UInt64) {
+            self.name = name
+            self.keyCode = keyCode
+            self.isModifier = isModifier
+            self.flag = flag
+            self.deviceFlag = deviceFlag
+        }
     }
 
     public let modifiers: [Element]

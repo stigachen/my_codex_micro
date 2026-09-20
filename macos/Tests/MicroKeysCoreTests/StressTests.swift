@@ -18,6 +18,7 @@ private final class NullSynth: KeySynthesizing {
     var presses = 0
     func press(_ chord: KeyChord) { presses += 1 }
     func release(_ chord: KeyChord) {}
+    func type(_ text: String) {}
 }
 
 @Suite struct StressTests {

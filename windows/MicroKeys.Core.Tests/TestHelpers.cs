@@ -21,4 +21,5 @@ internal sealed class Recorder : IKeySynthesizer
     public List<string> Log { get; } = new();
     public void Press(KeyChord chord) => Log.Add($"down {chord}");
     public void Release(KeyChord chord) => Log.Add($"up {chord}");
+    public void Type(string text) => Log.Add($"type {text}");
 }

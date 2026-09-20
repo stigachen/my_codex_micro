@@ -17,7 +17,7 @@ public class ConfigTests
         var c = Config.Parse(Config.ExampleJson);
         Assert.Single(c.Bindings);
         Assert.Equal(BindingMode.Hold, c.Bindings["ACT10"].Mode);
-        Assert.Equal("rctrl+rshift", c.Bindings["ACT10"].Chord.Text);
+        Assert.Equal("rctrl+rshift", c.Bindings["ACT10"].Chord!.Text);
         Assert.Equal(30, c.Options.KeyIntervalMs);
     }
 
@@ -26,7 +26,7 @@ public class ConfigTests
     {
         var c = Config.Parse("""{"bindings": {"act06": "ctrl+shift+4", "dial_cw": "up", "Mic": {"keys": "f13"}}}""");
         Assert.Equal(BindingMode.Tap, c.Bindings["ACT06"].Mode);
-        Assert.Equal(0x26, c.Bindings["ENC_CW"].Chord.Key!.VirtualKey);
+        Assert.Equal(0x26, c.Bindings["ENC_CW"].Chord!.Key!.VirtualKey);
         Assert.Equal(BindingMode.Tap, c.Bindings["ACT10"].Mode);
     }
 
@@ -45,16 +45,35 @@ public class ConfigTests
     {
         // Default: ACT11 folds into ACT10, and the error points at the option.
         var folded = Config.Parse("""{"bindings": {"act11": "f13"}}""");
-        Assert.Equal("f13", folded.Bindings["ACT10"].Chord.Text);
+        Assert.Equal("f13", folded.Bindings["ACT10"].Chord!.Text);
         Assert.False(folded.Bindings.ContainsKey("ACT11"));
         Assert.Contains("split_mic_key", Message("""{"bindings": {"ACT10": "a", "ACT11": "b"}}"""));
         Assert.DoesNotContain("split_mic_key", Message("""{"bindings": {"MIC": "a", "ACT10": "b"}}"""));
 
         // Split: both halves bind separately; MIC still means ACT10.
         var split = Config.Parse("""{"options": {"split_mic_key": true}, "bindings": {"MIC": "a", "ACT11": {"mode": "hold", "keys": "b"}}}""");
-        Assert.Equal("a", split.Bindings["ACT10"].Chord.Text);
+        Assert.Equal("a", split.Bindings["ACT10"].Chord!.Text);
         Assert.Equal(BindingMode.Hold, split.Bindings["ACT11"].Mode);
         Assert.Contains("MIC", Message("""{"options": {"split_mic_key": true}, "bindings": {"MIC": "a", "ACT10": "b"}}"""));
+    }
+
+    [Fact]
+    public void TypeMode()
+    {
+        var c = Config.Parse("""{"bindings": {"ACT06": {"mode": "type", "text": "abc"}, "DIAL_CW": {"mode": "TYPE", "text": "你好\n"}}}""");
+        Assert.Equal(BindingMode.Type, c.Bindings["ACT06"].Mode);
+        Assert.Equal("abc", c.Bindings["ACT06"].Text);
+        Assert.Null(c.Bindings["ACT06"].Chord);
+        Assert.Equal("\"abc\"", c.Bindings["ACT06"].Target);
+        Assert.Equal("你好\n", c.Bindings["ENC_CW"].Text);
+
+        Assert.Contains("text", Message("""{"bindings": {"ACT06": {"mode": "type"}}}"""));
+        Assert.Contains("text", Message("""{"bindings": {"ACT06": {"mode": "type", "text": ""}}}"""));
+        Assert.Contains("keys", Message("""{"bindings": {"ACT06": {"mode": "type", "text": "a", "keys": "b"}}}"""));
+        Assert.Contains("text", Message("""{"bindings": {"ACT06": {"mode": "type", "text": 5}}}"""));
+        // "text" without mode: the default is still tap, so this is an error that points at "type".
+        Assert.Contains("type", Message("""{"bindings": {"ACT06": {"text": "abc"}}}"""));
+        Assert.Contains("type", Message("""{"bindings": {"ACT06": {"mode": "hold", "text": "abc"}}}"""));
     }
 
     [Fact]

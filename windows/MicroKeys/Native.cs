@@ -9,6 +9,7 @@ internal static class Native
     public const uint INPUT_KEYBOARD = 1;
     public const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
     public const uint KEYEVENTF_KEYUP = 0x0002;
+    public const uint KEYEVENTF_UNICODE = 0x0004;
 
     [StructLayout(LayoutKind.Sequential)]
     public struct KEYBDINPUT
