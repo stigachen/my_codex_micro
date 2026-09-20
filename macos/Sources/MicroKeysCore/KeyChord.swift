@@ -16,6 +16,20 @@ public struct KeyChord: Equatable, CustomStringConvertible {
         /// Device-specific left/right bit (`NX_DEVICE*KEYMASK`); lets apps tell
         /// right-Ctrl from left-Ctrl. 0 for plain keys and `fn`.
         public let deviceFlag: UInt64
+        /// Flags a real keyboard sets on this key's own events regardless of
+        /// what is held: arrows carry fn + numeric pad, Home/End/Page/F-keys
+        /// carry fn, keypad keys carry numeric pad. Hotkey matchers (Raycast,
+        /// for one) compare against these, so synthetic events must too.
+        public let impliedFlags: UInt64
+
+        public init(name: String, keyCode: UInt16, isModifier: Bool, flag: UInt64, deviceFlag: UInt64, impliedFlags: UInt64 = 0) {
+            self.name = name
+            self.keyCode = keyCode
+            self.isModifier = isModifier
+            self.flag = flag
+            self.deviceFlag = deviceFlag
+            self.impliedFlags = impliedFlags
+        }
     }
 
     public let modifiers: [Element]
@@ -85,6 +99,7 @@ public enum KeyTable {
     static let flagControl: UInt64 = 1 << 18
     static let flagOption: UInt64 = 1 << 19
     static let flagCommand: UInt64 = 1 << 20
+    static let flagNumericPad: UInt64 = 1 << 21
     static let flagFn: UInt64 = 1 << 23
     // NX_DEVICE*KEYMASK
     static let devLCtrl: UInt64 = 0x0001
@@ -154,8 +169,30 @@ public enum KeyTable {
 
     public static func modifier(named name: String) -> KeyChord.Element? { modifiers[name] }
 
+    /// Arrow keys: fn + numeric pad, as an Apple keyboard reports them.
+    private static let arrowCodes: Set<UInt16> = [0x7B, 0x7C, 0x7D, 0x7E]
+    /// Home, End, Page Up, Page Down, forward delete, Help, and F1-F20: fn.
+    private static let fnCodes: Set<UInt16> = [
+        0x73, 0x77, 0x74, 0x79, 0x75, 0x72,
+        0x7A, 0x78, 0x63, 0x76, 0x60, 0x61, 0x62, 0x64, 0x65, 0x6D, 0x67, 0x6F,
+        0x69, 0x6B, 0x71, 0x6A, 0x40, 0x4F, 0x50, 0x5A,
+    ]
+    /// Keypad keys: numeric pad.
+    private static let keypadCodes: Set<UInt16> = [
+        0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5B, 0x5C,
+        0x4C, 0x45, 0x4E, 0x43, 0x4B, 0x41, 0x51, 0x47,
+    ]
+
+    static func impliedFlags(forKeyCode code: UInt16) -> UInt64 {
+        if arrowCodes.contains(code) { return flagFn | flagNumericPad }
+        if fnCodes.contains(code) { return flagFn }
+        if keypadCodes.contains(code) { return flagNumericPad }
+        return 0
+    }
+
     public static func key(named name: String) -> KeyChord.Element? {
         guard let code = keys[name] else { return nil }
-        return KeyChord.Element(name: name, keyCode: code, isModifier: false, flag: 0, deviceFlag: 0)
+        return KeyChord.Element(name: name, keyCode: code, isModifier: false, flag: 0, deviceFlag: 0,
+                                impliedFlags: impliedFlags(forKeyCode: code))
     }
 }

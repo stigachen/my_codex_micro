@@ -22,6 +22,23 @@ import Testing
         #expect(try KeyChord.parse("fn").modifiers.first?.flag == KeyTable.flagFn)
     }
 
+    @Test func navigationKeysCarryTheFlagsARealKeyboardSends() throws {
+        #expect(try KeyChord.parse("ctrl+alt+cmd+up").key?.impliedFlags == KeyTable.flagFn | KeyTable.flagNumericPad)
+        #expect(try KeyChord.parse("left").key?.impliedFlags == KeyTable.flagFn | KeyTable.flagNumericPad)
+        #expect(try KeyChord.parse("home").key?.impliedFlags == KeyTable.flagFn)
+        #expect(try KeyChord.parse("pagedown").key?.impliedFlags == KeyTable.flagFn)
+        #expect(try KeyChord.parse("forwarddelete").key?.impliedFlags == KeyTable.flagFn)
+        #expect(try KeyChord.parse("f13").key?.impliedFlags == KeyTable.flagFn)
+        #expect(try KeyChord.parse("keypad1").key?.impliedFlags == KeyTable.flagNumericPad)
+        #expect(try KeyChord.parse("keypadenter").key?.impliedFlags == KeyTable.flagNumericPad)
+        #expect(try KeyChord.parse("u").key?.impliedFlags == 0)
+        #expect(try KeyChord.parse("escape").key?.impliedFlags == 0)
+        #expect(try KeyChord.parse("delete").key?.impliedFlags == 0)
+        // Modifiers never carry implied flags; allFlags stays modifier-only.
+        #expect(try KeyChord.parse("ctrl+alt+cmd+up").allFlags
+                == KeyTable.flagControl | KeyTable.flagOption | KeyTable.flagCommand | KeyTable.devLCtrl | KeyTable.devLOpt | KeyTable.devLCmd)
+    }
+
     @Test func errors() {
         #expect(throws: KeyChord.ParseError.empty) { try KeyChord.parse("") }
         #expect(throws: KeyChord.ParseError.emptyToken) { try KeyChord.parse("cmd++a") }

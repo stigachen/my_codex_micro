@@ -9,8 +9,11 @@ import MicroKeysCore
 /// Modifiers are sent as `flagsChanged` events carrying both the generic flag
 /// (e.g. control) and the device-specific left/right bit (e.g. right-control),
 /// which is what lets a dictation app distinguish `rctrl+rshift` from the
-/// left-hand pair. Requires the Accessibility permission; without it macOS
-/// silently drops the events.
+/// left-hand pair. Keys that a real keyboard reports with extra flags
+/// (arrows: fn + numeric pad; Home/End/Page/F-keys: fn; keypad: numeric pad)
+/// get those flags on their own events, or hotkey matchers such as Raycast
+/// do not recognise them. Requires the Accessibility permission; without it
+/// macOS silently drops the events.
 final class CGKeySynthesizer: KeySynthesizing {
     private let source: CGEventSource? = {
         let s = CGEventSource(stateID: .hidSystemState)
@@ -29,14 +32,14 @@ final class CGKeySynthesizer: KeySynthesizing {
             post(m, down: true, flags: flags)
         }
         if let key = chord.key {
-            post(key, down: true, flags: flags)
+            post(key, down: true, flags: flags | key.impliedFlags)
         }
     }
 
     func release(_ chord: KeyChord) {
         var remaining = chord.modifiers
         if let key = chord.key {
-            post(key, down: false, flags: chord.allFlags)
+            post(key, down: false, flags: chord.allFlags | key.impliedFlags)
         }
         while let m = remaining.popLast() {
             let flags = remaining.reduce(UInt64(0)) { $0 | $1.flag | $1.deviceFlag }

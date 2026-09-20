@@ -165,7 +165,7 @@ Without the `r` prefix you get the left key.
 * punctuation as the character itself: `-` `=` `[` `]` `\` `;` `'` `,` `.` `/` `` ` ``, or by name: `minus` `equal` `leftbracket` `rightbracket` `backslash` `semicolon` `quote` `comma` `period` `slash` `grave`
 * keypad: `keypad0`–`keypad9`, `keypadenter`, `keypadplus`, `keypadminus`, `keypadmultiply`, `keypaddivide`, `keypaddecimal`, `keypadequals`
 
-Key names refer to positions on the US layout.
+Key names refer to positions on the US layout. Arrows, Home/End/Page Up/Page Down, F-keys and keypad keys are synthesized with the fn / numeric-pad flags a real keyboard sets, so hotkey matchers such as Raycast recognise them.
 
 Not supported: two regular keys in one shortcut.
 

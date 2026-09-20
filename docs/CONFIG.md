@@ -167,7 +167,7 @@ fn                    单独的 fn/🌐 键
 * 符号可以直接写字符：`-` `=` `[` `]` `\` `;` `'` `,` `.` `/` `` ` ``；也可以写名字：`minus` `equal` `leftbracket` `rightbracket` `backslash` `semicolon` `quote` `comma` `period` `slash` `grave`
 * 小键盘：`keypad0`～`keypad9`、`keypadenter`、`keypadplus`、`keypadminus`、`keypadmultiply`、`keypaddivide`、`keypaddecimal`、`keypadequals`
 
-按键名对应的是美式键盘布局的物理位置。
+按键名对应的是美式键盘布局的物理位置。方向键、Home/End/PageUp/PageDown、F 键和小键盘键合成时会自动带上真实键盘的 fn / 小键盘标志位，所以 Raycast 这类按标志位比对热键的软件能正确识别。
 
 不支持的：一个快捷键里放两个普通键。
 
