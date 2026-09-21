@@ -77,18 +77,15 @@ jobs:
         run: make test
 
       - name: Build signed release
+        # Credentials go straight to notarytool: `store-credentials` needs an
+        # interactive keychain and crashes (SIGTRAP) on a runner. The three
+        # NOTARY_* secrets being empty means "sign only, do not notarize".
         env:
           SIGN_IDENTITY: ${{ vars.SIGN_IDENTITY }}
-          NOTARY_PROFILE: ${{ secrets.NOTARY_APPLE_ID != '' && 'ci' || '' }}
-        run: |
-          set -euo pipefail
-          if [ -n "${NOTARY_PROFILE}" ]; then
-            xcrun notarytool store-credentials ci \
-              --apple-id "${{ secrets.NOTARY_APPLE_ID }}" \
-              --password "${{ secrets.NOTARY_PASSWORD }}" \
-              --team-id "${{ secrets.NOTARY_TEAM_ID }}"
-          fi
-          make release
+          NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
+          NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
+          NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+        run: make release
 
       - name: Verify signature
         run: codesign -dvv build/MicroKeys.app 2>&1 | grep -E "^(Authority|Signature)="

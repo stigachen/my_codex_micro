@@ -167,6 +167,8 @@ SIGN_IDENTITY="Developer ID Application: Guang Chen (P9P5K7M2C4)" make release
 |---|---|---|
 | `SIGN_IDENTITY` | 是 | 钥匙串里的证书名。缺少或找不到直接失败，不会退回临时签名 |
 | `NOTARY_PROFILE` | 否 | `notarytool store-credentials` 时起的名字。给了就公证并 staple，自签名证书不要给（Apple 不会公证） |
+| `NOTARY_APPLE_ID` / `NOTARY_PASSWORD` / `NOTARY_TEAM_ID` | 否 | 不用钥匙串凭据，直接传 Apple ID、App 专用密码、Team ID。CI 上用这组：`store-credentials` 在无交互钥匙串的运行器上会崩溃 |
+| `NOTARY_RESUME` | 否 | 已提交的 submission id。跳过构建、签名和提交，只等结果、staple、打包，见 4.6 |
 
 产物在 `dist/`：
 

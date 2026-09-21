@@ -8,7 +8,9 @@
 #   NOTARY_PROFILE="MicroKeys" make release                     # notarized
 #
 # NOTARY_PROFILE is the name given to `xcrun notarytool store-credentials`.
-# Without it the build is signed but not notarized, which is right for a
+# On CI, where store-credentials crashes without an interactive keychain,
+# pass NOTARY_APPLE_ID / NOTARY_PASSWORD / NOTARY_TEAM_ID instead. With
+# neither the build is signed but not notarized, which is right for a
 # self-signed certificate (Apple will not notarize those).
 #
 # If a notarization is taking hours (first submissions from a new team can),
@@ -18,6 +20,17 @@
 #   NOTARY_RESUME=<submission-id> NOTARY_PROFILE="MicroKeys" \
 #   SIGN_IDENTITY="Developer ID Application: Name (TEAMID)" make release
 set -euo pipefail
+
+# How notarytool authenticates: a keychain profile, or credentials passed
+# directly. Empty when neither is configured, which means "do not notarize".
+NOTARY_AUTH=()
+if [ -n "${NOTARY_PROFILE:-}" ]; then
+    NOTARY_AUTH=(--keychain-profile "$NOTARY_PROFILE")
+elif [ -n "${NOTARY_APPLE_ID:-}" ]; then
+    : "${NOTARY_PASSWORD:?NOTARY_PASSWORD (an app-specific password) is required with NOTARY_APPLE_ID}"
+    : "${NOTARY_TEAM_ID:?NOTARY_TEAM_ID is required with NOTARY_APPLE_ID}"
+    NOTARY_AUTH=(--apple-id "$NOTARY_APPLE_ID" --password "$NOTARY_PASSWORD" --team-id "$NOTARY_TEAM_ID")
+fi
 cd "$(dirname "$0")/.."
 
 : "${SIGN_IDENTITY:?SIGN_IDENTITY is required for a release (a self-signed or Developer ID certificate name); ad-hoc builds are for local testing only}"
@@ -34,10 +47,10 @@ ZIP="$DIST/MicroKeys-$VERSION.zip"
 if [ -n "${NOTARY_RESUME:-}" ]; then
     # The app in build/ is the one that was submitted; do not rebuild or
     # re-sign it, or the staple would not match the ticket.
-    : "${NOTARY_PROFILE:?NOTARY_PROFILE is required with NOTARY_RESUME}"
+    [ ${#NOTARY_AUTH[@]} -gt 0 ] || { echo "NOTARY_PROFILE or NOTARY_APPLE_ID/NOTARY_PASSWORD/NOTARY_TEAM_ID is required with NOTARY_RESUME" >&2; exit 1; }
     [ -d "$APP" ] || { echo "no $APP to staple; the build that was submitted is gone" >&2; exit 1; }
     echo "▸ waiting for notarization $NOTARY_RESUME"
-    xcrun notarytool wait "$NOTARY_RESUME" --keychain-profile "$NOTARY_PROFILE"
+    xcrun notarytool wait "$NOTARY_RESUME" "${NOTARY_AUTH[@]}"
     xcrun stapler staple "$APP"
     rm -f build/notarize.zip
 else
@@ -48,11 +61,11 @@ else
     codesign --force --deep --options runtime --timestamp=none --sign "$SIGN_IDENTITY" "$APP"
     codesign --verify --deep --strict --verbose=1 "$APP"
 
-    if [ -n "${NOTARY_PROFILE:-}" ]; then
-        echo "▸ notarizing (profile: $NOTARY_PROFILE)"
+    if [ ${#NOTARY_AUTH[@]} -gt 0 ]; then
+        echo "▸ notarizing (${NOTARY_PROFILE:+profile: $NOTARY_PROFILE}${NOTARY_PROFILE:-apple id: $NOTARY_APPLE_ID})"
         codesign --force --deep --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP"
         ditto -c -k --keepParent "$APP" build/notarize.zip
-        xcrun notarytool submit build/notarize.zip --keychain-profile "$NOTARY_PROFILE" --wait
+        xcrun notarytool submit build/notarize.zip "${NOTARY_AUTH[@]}" --wait
         xcrun stapler staple "$APP"
         rm -f build/notarize.zip
     fi
@@ -69,7 +82,7 @@ rm -rf "$STAGE"
 
 echo
 codesign -dv "$APP" 2>&1 | grep -E "^(Authority|TeamIdentifier)=" | head -2
-if [ -n "${NOTARY_PROFILE:-}" ]; then
+if [ ${#NOTARY_AUTH[@]} -gt 0 ]; then
     spctl --assess --type execute "$APP" && echo "Gatekeeper: accepted"
 else
     echo "Gatekeeper: not notarized - recipients must allow it once in System Settings › Privacy & Security, or run: xattr -dr com.apple.quarantine /Applications/MicroKeys.app"
