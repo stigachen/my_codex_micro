@@ -21,7 +21,7 @@ MicroKeys 是常驻在菜单栏、需要「输入监控」和「辅助功能」�
 
 `make app` 默认临时签名；`make release` 要求指定证书，可以是自签名或 Developer ID。
 
-## 3. 自签名证书（当前使用的方式）
+## 3. 自签名证书（0.4.2 及之前的发布方式）
 
 ### 3.1 用钥匙串访问创建（图形界面）
 
@@ -83,7 +83,9 @@ SIGN_IDENTITY="MicroKeys Dev" make release    # 发布包，见第 5 节
 
 之后升级只要还是同一张证书签的，不再有任何提示，权限也不用重新给。
 
-## 4. Developer ID（日后升级路径）
+## 4. Developer ID（当前使用的方式）
+
+自 0.4.3 起，Release 用 `Developer ID Application: Guang Chen (P9P5K7M2C4)` 签名并公证。下面是当时走过的完整步骤，换机器或换证书时照做。
 
 ### 4.1 申请开发者账号
 
@@ -140,7 +142,22 @@ xcrun stapler validate build/MicroKeys.app            # 应输出 The validate a
 
 ### 4.5 从自签名切换到 Developer ID 时用户会经历什么
 
-签名身份变了，所以已安装的用户升级时会**再授权一次**输入监控和辅助功能，之后永久稳定。在发布说明里提前告知即可。
+签名身份变了，所以从 0.4.2 或更早版本升级的用户会**再授权一次**输入监控和辅助功能，之后永久稳定。Release 说明里已写明。
+
+### 4.6 首次公证要等多久，等不下去怎么办
+
+同一个 Team ID 的第一次提交可能在 `In Progress` 停留几小时，之后的提交通常几分钟。`make release` 会一直等到结果；
+另开终端用 `xcrun notarytool history --keychain-profile "MicroKeys"` 可以看状态。
+
+不想一直挂着可以 Ctrl-C，提交在 Apple 那边照常进行。之后不用重新构建，拿 notarytool 打印过的 submission id 续上，
+脚本会等到结果、staple、打包：
+
+```sh
+NOTARY_RESUME=<submission-id> NOTARY_PROFILE="MicroKeys" \
+SIGN_IDENTITY="Developer ID Application: Guang Chen (P9P5K7M2C4)" make release
+```
+
+前提是 `build/MicroKeys.app` 还是提交时的那一份，中间不要再跑 `make app`。
 
 ## 5. `make release` 说明
 

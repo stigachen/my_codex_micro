@@ -64,29 +64,20 @@ SIGN_IDENTITY="MicroKeys Dev" make app
 
 ## 发布给别人
 
-```sh
-SIGN_IDENTITY="MicroKeys Dev" make release
-```
-
-产物在 `dist/`：`MicroKeys-<版本>.dmg`、同内容的 `.zip`，以及 `SHA256SUMS.txt`。应用用指定证书签名并开启 hardened runtime。
-
-**自签名证书**能让权限跨版本保留，但 Gatekeeper 不认。收到 dmg 的人第一次打开会被拦，两种放行方式任选：
-
-* 打开被拦后，去「系统设置 → 隐私与安全性」，页面下方点「仍要打开」；
-* 或在终端执行 `xattr -dr com.apple.quarantine /Applications/MicroKeys.app`。
-
-之后就和正常应用一样，升级也不用再授权。
-
-**Developer ID 证书**可以进一步公证，收到的人双击即开，没有任何提示。先用
-`xcrun notarytool store-credentials "MicroKeys" --apple-id … --team-id …` 存好凭据，然后：
+正式发布用 Developer ID 证书签名并经 Apple 公证，收到 dmg 的人双击即开，没有任何提示，权限也只需授予一次。
 
 ```sh
 SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" NOTARY_PROFILE="MicroKeys" make release
 ```
 
-脚本会签名、提交公证、等待结果、staple，再打包。
+`NOTARY_PROFILE` 是事先用 `xcrun notarytool store-credentials "MicroKeys" --apple-id … --team-id …` 存好的公证凭据名。
+脚本会签名（hardened runtime、带时间戳）、提交公证、等待结果、把票据 staple 到应用，再打包。
+产物在 `dist/`：`MicroKeys-<版本>.dmg`、同内容的 `.zip`，以及 `SHA256SUMS.txt`。
 
-也可以在 GitHub Actions 上出包：把 `VERSION` 改成新版本号并提交，再推送同名的 tag（如 `v0.3.0`），就会自动签名、打包并创建 Release；合并 PR 不会触发。
+GitHub 上的 Release 也是这样出的：把 `VERSION` 改成新版本号并提交，再推送同名的 tag（如 `v0.4.2`），Actions 会自动签名、公证、打包并创建 Release；合并 PR 不会触发。
+
+没有 Developer ID 时也可以用自签名证书 `SIGN_IDENTITY="MicroKeys Dev" make release`：权限同样跨版本保留，但 Gatekeeper 不认，
+收件人第一次要在「系统设置 → 隐私与安全性」点「仍要打开」，或执行 `xattr -dr com.apple.quarantine /Applications/MicroKeys.app`。
 
 签名的完整说明，包括自签名证书的创建与迁移、Developer ID 的申请步骤、公证凭据、GitHub Actions 配置、常见问题：
 **[docs/SIGNING.md](docs/SIGNING.md)**。

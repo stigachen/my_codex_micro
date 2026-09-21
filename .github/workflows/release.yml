@@ -9,9 +9,8 @@ name: Release
 # means no Release is published at all.
 #
 # macOS signs with the certificate in MACOS_CERT_P12 / MACOS_CERT_PASSWORD
-# (identity name in the SIGN_IDENTITY variable). Add NOTARY_APPLE_ID /
-# NOTARY_PASSWORD / NOTARY_TEAM_ID once a Developer ID certificate is in use
-# and the build is notarized as well.
+# (identity name in the SIGN_IDENTITY variable) and, when NOTARY_APPLE_ID /
+# NOTARY_PASSWORD / NOTARY_TEAM_ID are set, notarizes and staples the build.
 on:
   push:
     tags: ['v*']
@@ -63,10 +62,13 @@ jobs:
           security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
 
           # A self-signed certificate must be explicitly trusted for code signing.
+          # A Developer ID certificate chains to Apple's root and needs no such step.
           openssl pkcs12 -in "$RUNNER_TEMP/cert.p12" -passin "pass:$CERT_PASSWORD" -nokeys -legacy \
             2>/dev/null > "$RUNNER_TEMP/cert.pem" \
             || openssl pkcs12 -in "$RUNNER_TEMP/cert.p12" -passin "pass:$CERT_PASSWORD" -nokeys > "$RUNNER_TEMP/cert.pem"
-          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/cert.pem"
+          if [ "$(openssl x509 -in "$RUNNER_TEMP/cert.pem" -noout -issuer)" = "$(openssl x509 -in "$RUNNER_TEMP/cert.pem" -noout -subject | sed 's/^subject=/issuer=/')" ]; then
+            sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/cert.pem"
+          fi
           rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/cert.pem"
 
           security find-identity -v -p codesigning "$KEYCHAIN"
@@ -151,10 +153,9 @@ jobs:
           notes="$(cat <<'EOT'
           ## macOS 安装
 
-          1. 打开 dmg，把 MicroKeys 拖到 Applications。
-          2. 第一次打开会被 Gatekeeper 拦（自签名，未公证）：去「系统设置 → 隐私与安全性」点「仍要打开」，或执行
-             `xattr -dr com.apple.quarantine /Applications/MicroKeys.app`。
-          3. 按提示授予「输入监控」和「辅助功能」权限。同一证书签名的后续版本不需要再授权。
+          1. 打开 dmg，把 MicroKeys 拖到 Applications，双击打开。应用已用 Developer ID 签名并经 Apple 公证，没有任何拦截提示。
+          2. 按提示授予「输入监控」和「辅助功能」权限。后续版本不需要再授权。
+          3. 从 0.4.2 或更早的版本升级过来的用户会再授权一次：那些版本用的是另一张证书。
 
           ## Windows 安装
 

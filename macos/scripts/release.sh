@@ -10,6 +10,13 @@
 # NOTARY_PROFILE is the name given to `xcrun notarytool store-credentials`.
 # Without it the build is signed but not notarized, which is right for a
 # self-signed certificate (Apple will not notarize those).
+#
+# If a notarization is taking hours (first submissions from a new team can),
+# it is safe to Ctrl-C: the submission keeps running at Apple. Pick it up
+# later without rebuilding, using the id notarytool printed:
+#
+#   NOTARY_RESUME=<submission-id> NOTARY_PROFILE="MicroKeys" \
+#   SIGN_IDENTITY="Developer ID Application: Name (TEAMID)" make release
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -24,20 +31,31 @@ STAGE="build/dmg-stage"
 DMG="$DIST/MicroKeys-$VERSION.dmg"
 ZIP="$DIST/MicroKeys-$VERSION.zip"
 
-echo "▸ building v$VERSION"
-SIGN_IDENTITY="$SIGN_IDENTITY" scripts/build-app.sh >/dev/null
-
-echo "▸ signing with hardened runtime: $SIGN_IDENTITY"
-codesign --force --deep --options runtime --timestamp=none --sign "$SIGN_IDENTITY" "$APP"
-codesign --verify --deep --strict --verbose=1 "$APP"
-
-if [ -n "${NOTARY_PROFILE:-}" ]; then
-    echo "▸ notarizing (profile: $NOTARY_PROFILE)"
-    codesign --force --deep --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP"
-    ditto -c -k --keepParent "$APP" build/notarize.zip
-    xcrun notarytool submit build/notarize.zip --keychain-profile "$NOTARY_PROFILE" --wait
+if [ -n "${NOTARY_RESUME:-}" ]; then
+    # The app in build/ is the one that was submitted; do not rebuild or
+    # re-sign it, or the staple would not match the ticket.
+    : "${NOTARY_PROFILE:?NOTARY_PROFILE is required with NOTARY_RESUME}"
+    [ -d "$APP" ] || { echo "no $APP to staple; the build that was submitted is gone" >&2; exit 1; }
+    echo "▸ waiting for notarization $NOTARY_RESUME"
+    xcrun notarytool wait "$NOTARY_RESUME" --keychain-profile "$NOTARY_PROFILE"
     xcrun stapler staple "$APP"
     rm -f build/notarize.zip
+else
+    echo "▸ building v$VERSION"
+    SIGN_IDENTITY="$SIGN_IDENTITY" scripts/build-app.sh >/dev/null
+
+    echo "▸ signing with hardened runtime: $SIGN_IDENTITY"
+    codesign --force --deep --options runtime --timestamp=none --sign "$SIGN_IDENTITY" "$APP"
+    codesign --verify --deep --strict --verbose=1 "$APP"
+
+    if [ -n "${NOTARY_PROFILE:-}" ]; then
+        echo "▸ notarizing (profile: $NOTARY_PROFILE)"
+        codesign --force --deep --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP"
+        ditto -c -k --keepParent "$APP" build/notarize.zip
+        xcrun notarytool submit build/notarize.zip --keychain-profile "$NOTARY_PROFILE" --wait
+        xcrun stapler staple "$APP"
+        rm -f build/notarize.zip
+    fi
 fi
 
 echo "▸ packaging"
