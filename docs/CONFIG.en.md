@@ -280,7 +280,7 @@ In Typeless, click "Add another" next to the Dictate shortcut and record the sam
 | "Last key" updates but the target app does nothing | First make sure `options.key_interval_ms` is not 0 (Typeless needs ≥ 30). Then check Accessibility: System Settings → Privacy & Security → Accessibility. Still stuck: compare real vs synthetic events with `--dump-events`, section 8 |
 | "Last key" never changes | The pad is not connected, or Input Monitoring is missing. USB and Bluetooth both work; with both connected USB wins |
 | Edits do not take effect | Look for a "Config error" line in the menu, or click "Reload Config" |
-| Permissions have to be granted again after a rebuild | Ad-hoc signature. Sign with a self-signed certificate (see README) and the grants survive rebuilds |
+| Permissions have to be granted again after a rebuild | Ad-hoc signature. Sign with a fixed certificate (Developer ID or self-signed, see docs/SIGNING.md) and the grants survive rebuilds |
 | A modifier seems stuck after push-to-talk | MicroKeys releases everything it holds on disconnect, config reload and quit; if something still sticks, tap that modifier once |
 
 Log locations are in the table in section 1; "Open Log…" in the menu opens it.
