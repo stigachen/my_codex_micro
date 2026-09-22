@@ -127,9 +127,11 @@ ChatGPT 仍会响应你映射的键（出厂 ACT 键分别是快速模式 / 同�
 
 ## 其他 Work Louder 键盘（Creator Micro 2）
 
-Codex Micro 就是 Work Louder Creator Micro 2 的机身加 Codex 固件，官方说 CM2 同样用 Input 软件配置而不是 QMK/VIA，
-大概率走同一条厂商 HID 通道，但**没有实机验证过**。MicroKeys 会接管任何乐鑫 VID（0x303A）下厂商名为 Work Louder 的设备。
-插上后先运行：
+Codex Micro 就是 Work Louder Creator Micro 2 的机身加 Codex 固件，两者走同一条厂商 HID 通道。
+**Creator Micro 2 已在实机上验证可用**（2026-09-22）：MicroKeys 会接管任何乐鑫 VID（0x303A）下厂商名为 Work Louder 的设备，
+按键映射照常工作。
+
+其他 Work Louder 型号插上后先运行：
 
 ```sh
 MicroKeys --detect
