@@ -102,6 +102,7 @@ make windows-publish    # windows/dist/MicroKeys-<版本>-win-x64.zip 和 win-ar
 **最近按键**（用来查某个物理键的 id）、最近触发的快捷键、打开配置 / 文档 / 日志、语言、开机自启、关于、退出。
 
 界面支持简体中文和 English。默认跟随系统语言，在「语言 / Language」子菜单里选定后会记住，下次启动仍然生效。
+系统自带的界面（如「关于」面板里的「版本」一词）也跟随这个选择，但要下次启动才切换。
 配置错误提示、命令行输出也随语言切换。英文版配置说明见 [docs/CONFIG.en.md](docs/CONFIG.en.md)。
 
 ## 命令行

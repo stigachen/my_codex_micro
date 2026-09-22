@@ -11,6 +11,15 @@ enum LanguagePreference: String, CaseIterable {
         get { LanguagePreference(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .system }
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: key)
+            // AppKit's own UI (the About panel's "Version" label, standard
+            // alerts) follows the per-app AppleLanguages default, the same
+            // thing System Settings › Language & Region › Apps writes. Keep
+            // it in step with the menu choice; AppKit reads it at launch.
+            switch newValue {
+            case .system: UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+            case .zhHans: UserDefaults.standard.set(["zh-Hans"], forKey: "AppleLanguages")
+            case .en: UserDefaults.standard.set(["en"], forKey: "AppleLanguages")
+            }
             apply()
         }
     }
