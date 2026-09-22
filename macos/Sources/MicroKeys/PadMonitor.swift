@@ -24,7 +24,7 @@ final class PadMonitor {
     /// Espressif's USB vendor id; Work Louder's ESP32-based pads enumerate under it.
     static let vendorID = 0x303A
     /// The Codex Micro. Other Work Louder pads on the same firmware family
-    /// (Creator Micro 2) are expected to differ only in product id, so any
+    /// differ only in product id (verified on a Creator Micro 2), so any
     /// device under the same vendor id whose manufacturer string is
     /// "Work Louder" is accepted too.
     static let productID = 0x8360
