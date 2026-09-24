@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var lastFire: String?
     private var permissionTimer: Timer?
     private var inputMonitoringWasGranted = false
+    private var secureInputWasOn = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -66,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.pad.start()
             }
             self.inputMonitoringWasGranted = granted
+            self.logSecureInputChange()
             self.refreshIcon()
         }
     }
@@ -73,6 +75,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         mapper.releaseAll()
         pad.stop()
+    }
+
+    /// One log line each time Secure Input flips, so the log shows when the
+    /// pad "stopped working" and which app was in the password field.
+    private func logSecureInputChange() {
+        let on = SecureInput.isEnabled
+        guard on != secureInputWasOn else { return }
+        secureInputWasOn = on
+        if on { Log.info(S.logSecureInputOn(secureInputHolderLabel()).text) } else { Log.info(S.logSecureInputOff.text) }
+    }
+
+    private func secureInputHolderLabel() -> String {
+        guard let holder = SecureInput.holder else { return S.secureInputHolderUnknown.text }
+        return S.secureInputHolder(holder.name, holder.pid).text
     }
 
     private func ensurePermissions() {
@@ -96,6 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func refreshIcon() {
         guard let button = statusItem?.button else { return }
         let healthy = padStatus.isConnected && Permissions.accessibilityGranted && store.lastError == nil
+            && !SecureInput.isEnabled
         button.appearsDisabled = !healthy
         button.toolTip = healthy ? S.tooltipRunning.text : S.tooltipProblem(problemSummary()).text
     }
@@ -106,6 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let error = store.lastError { return S.problemConfig(error).text }
         if case .openFailed(let reason) = padStatus { return reason }
         if !padStatus.isConnected { return S.problemDisconnected.text }
+        if SecureInput.isEnabled { return S.problemSecureInput(secureInputHolderLabel()).text }
         return S.problemNone.text
     }
 
@@ -121,6 +139,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             action: #selector(openInputMonitoring))
         add((Permissions.accessibilityGranted ? S.accessibilityOK : S.accessibilityMissing).text,
             action: #selector(openAccessibility))
+        // Checked each time the menu opens: the same answer as
+        // `IsSecureEventInputEnabled()` / `ioreg … | grep SecureInput`.
+        if SecureInput.isEnabled {
+            add(S.secureInputOn(secureInputHolderLabel()).text, action: #selector(showSecureInputHelp))
+        } else {
+            add(S.secureInputOff.text, enabled: false)
+        }
         menu.addItem(.separator())
 
         if let error = store.lastError {
@@ -201,6 +226,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func openAccessibility() {
         Permissions.requestAccessibility()
         Permissions.openAccessibilitySettings()
+    }
+
+    @objc private func showSecureInputHelp() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = S.secureInputTitle.text
+        alert.informativeText = S.secureInputBody(secureInputHolderLabel()).text
+        alert.addButton(withTitle: S.secureInputOK.text)
+        alert.addButton(withTitle: S.secureInputActivityMonitor.text)
+        if alert.runModal() == .alertSecondButtonReturn { SecureInput.openActivityMonitor() }
     }
 
     @objc private func openConfig() {
