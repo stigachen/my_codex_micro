@@ -39,6 +39,8 @@ enum S {
     case padConnected(String), padDisconnected, padOpenFailed(String)
     case transportBluetooth
     case inputMonitoringOK, inputMonitoringMissing, accessibilityOK, accessibilityMissing
+    case secureInputOff, secureInputOn(String), secureInputHolder(String, Int32), secureInputHolderUnknown
+    case secureInputTitle, secureInputBody(String), secureInputOK, secureInputActivityMonitor
     case configError(String), configNoBindings, configCount(Int)
     case modeHold, modeTap, modeType
     case lastKey(String), lastFire(String), noKeyYet, noFireYet
@@ -49,9 +51,11 @@ enum S {
     case loginItemFailedTitle, loginItemFailedBody(String)
     case tooltipRunning, tooltipProblem(String)
     case problemInputMonitoring, problemAccessibility, problemConfig(String), problemDisconnected, problemNone
+    case problemSecureInput(String)
     case logStarted(String), logSeeded(String), logSeedFailed(String), logLoaded(Int, String), logConfigError(String)
     case logConnected(String), logDisconnected(String), logHIDOpenFailed(String), logNoPermission
     case logPermissionGranted, logLoginItemFailed(String)
+    case logSecureInputOn(String), logSecureInputOff
 
     var text: String {
         let zh = L10n.language == .zhHans
@@ -64,6 +68,45 @@ enum S {
         case .inputMonitoringMissing: return zh ? "❌ 输入监控权限未授予（点击打开设置）" : "❌ Input Monitoring missing (click to open settings)"
         case .accessibilityOK: return zh ? "✅ 辅助功能权限已授予" : "✅ Accessibility granted"
         case .accessibilityMissing: return zh ? "❌ 辅助功能权限未授予（点击打开设置）" : "❌ Accessibility missing (click to open settings)"
+        case .secureInputOff: return zh ? "✅ 安全输入未开启" : "✅ Secure Input off"
+        case .secureInputOn(let h): return zh ? "⚠️ 安全输入被 \(h) 占用（点击查看说明）" : "⚠️ Secure Input held by \(h) (click for details)"
+        case .secureInputHolder(let n, let pid): return zh ? "\(n)（PID \(pid)）" : "\(n) (PID \(pid))"
+        case .secureInputHolderUnknown: return zh ? "未知进程" : "an unknown process"
+        case .secureInputTitle: return zh ? "安全输入（Secure Input）已开启" : "Secure Input is on"
+        case .secureInputBody(let h): return zh
+            ? """
+            macOS 在光标位于密码框时会开启「安全输入」，阻止其他程序监听键盘。正常情况下离开密码框就会自动关闭；\
+            有些应用开启后忘了关，会一直占用。
+
+            当前占用者：\(h)
+
+            占用期间 MicroKeys 仍会发出按键，但 Raycast 等靠监听键盘的快捷键工具收不到，映射看起来就像失效了。
+
+            处理办法（按顺序试）：
+            1. 切到该应用，按一下 Esc 或点一下别处，让密码框失去焦点；
+            2. 退出该应用再重新打开；
+            3. 锁屏后再解锁（占用者是 loginwindow 时通常这样就好）。
+
+            终端里可以用这条命令确认：ioreg -l -d 1 -w 0 | grep SecureInput
+            """
+            : """
+            macOS turns on Secure Input while the cursor is in a password field so other apps cannot observe \
+            keystrokes. It normally turns off when you leave the field; some apps forget and keep it on.
+
+            Currently held by: \(h)
+
+            While it is on, MicroKeys still sends the keys, but hotkey tools such as Raycast that listen for \
+            keyboard events never see them, so the mapping looks broken.
+
+            Try, in order:
+            1. Switch to that app and press Esc or click elsewhere so the password field loses focus;
+            2. Quit and reopen that app;
+            3. Lock the screen and unlock it (usually enough when the holder is loginwindow).
+
+            To confirm from Terminal: ioreg -l -d 1 -w 0 | grep SecureInput
+            """
+        case .secureInputOK: return zh ? "好" : "OK"
+        case .secureInputActivityMonitor: return zh ? "打开活动监视器" : "Open Activity Monitor"
         case .configError(let e): return zh ? "❌ 配置错误：\(e)" : "❌ Config error: \(e)"
         case .configNoBindings: return zh ? "配置：没有任何绑定" : "Config: no bindings"
         case .configCount(let n): return zh ? "配置：\(n) 个绑定" : "Config: \(n) binding\(n == 1 ? "" : "s")"
@@ -101,6 +144,7 @@ enum S {
         case .problemConfig(let e): return zh ? "配置错误：\(e)" : "config error: \(e)"
         case .problemDisconnected: return zh ? "未连接 Codex Micro" : "Codex Micro not connected"
         case .problemNone: return zh ? "正常" : "OK"
+        case .problemSecureInput(let h): return zh ? "安全输入被 \(h) 占用" : "Secure Input held by \(h)"
         case .logStarted(let p): return zh ? "MicroKeys 启动，配置文件：\(p)" : "MicroKeys started, config: \(p)"
         case .logSeeded(let p): return zh ? "已生成示例配置：\(p)" : "Wrote example config: \(p)"
         case .logSeedFailed(let e): return zh ? "写入示例配置失败：\(e)" : "Could not write example config: \(e)"
@@ -112,6 +156,8 @@ enum S {
         case .logNoPermission: return zh ? "缺少「输入监控」权限" : "Input Monitoring permission missing"
         case .logPermissionGranted: return zh ? "输入监控权限已授予，重新打开设备" : "Input Monitoring granted, reopening the device"
         case .logLoginItemFailed(let e): return zh ? "切换开机自启失败：\(e)" : "Launch at Login toggle failed: \(e)"
+        case .logSecureInputOn(let h): return zh ? "安全输入已开启，占用者：\(h)" : "Secure Input on, held by \(h)"
+        case .logSecureInputOff: return zh ? "安全输入已关闭" : "Secure Input off"
         }
     }
 }
