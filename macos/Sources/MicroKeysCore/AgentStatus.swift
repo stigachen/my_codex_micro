@@ -29,11 +29,15 @@ public struct ClaudeHookInput: Equatable {
     public var event: String
     public var sessionID: String
     public var notificationType: String?
+    /// Set when the hook fired inside a subagent. Subagents share their
+    /// parent's `session_id`, so this is what tells their events apart.
+    public var agentID: String?
 
-    public init(event: String, sessionID: String, notificationType: String? = nil) {
+    public init(event: String, sessionID: String, notificationType: String? = nil, agentID: String? = nil) {
         self.event = event
         self.sessionID = sessionID
         self.notificationType = notificationType
+        self.agentID = agentID
     }
 
     /// nil when the payload is not a hook payload at all.
@@ -42,69 +46,80 @@ public struct ClaudeHookInput: Equatable {
               let event = object["hook_event_name"] as? String, !event.isEmpty
         else { return nil }
         let session = object["session_id"] as? String ?? ""
+        let agent = object["agent_id"] as? String
         return ClaudeHookInput(event: event, sessionID: session.isEmpty ? "unknown" : session,
-                               notificationType: object["notification_type"] as? String)
+                               notificationType: object["notification_type"] as? String,
+                               agentID: agent?.isEmpty == false ? agent : nil)
     }
 
     public enum Action: Equatable {
-        /// Create the session as "idle" unless it already exists.
+        /// Create the session as idle unless it already exists.
         case begin
-        case set(AgentState)
-        /// "working" becomes "idle"; any other state stays.
+        /// You sent a prompt: working, and every pending wait is answered.
+        case prompt
+        /// This agent is running tools again: its own waits are answered.
+        case work
+        /// This agent is blocked on a permission decision.
+        case awaitPermission
+        /// This agent is blocked on some other input from you.
+        case awaitInput
+        /// The main turn ended: done, and the main agent's waits are over.
+        case finish
+        /// `idle_prompt`: a turn left "working" (Esc fires no hook) becomes idle.
         case settle
         case end
         case ignore
     }
 
-    /// Notification types that mean Claude Code is blocked on you.
-    static let waitingNotifications: Set<String> = [
-        "permission_prompt", "elicitation_dialog", "elicitation_url_dialog", "agent_needs_input",
-    ]
+    static let inputNotifications: Set<String> = ["elicitation_dialog", "elicitation_url_dialog", "agent_needs_input"]
+    static let answeredNotifications: Set<String> = ["elicitation_response", "elicitation_complete"]
 
     /// How this event changes its session.
     ///
     /// * `SessionStart` also fires on resume and after a compaction, which can
-    ///   happen mid-turn, so it never overwrites a state already recorded.
-    /// * `PermissionRequest` fires as the permission dialog opens; the
-    ///   `permission_prompt` notification is the same thing, as a fallback.
-    /// * `PostToolUse` / `PostToolUseFailure` turn "waiting" back into
-    ///   "working" once you answer; without them the pad stays amber until the
-    ///   turn ends.
-    /// * Pressing Esc fires no hook at all. The `idle_prompt` notification,
-    ///   about a minute into waiting at the prompt, is what clears the blue
-    ///   such an interrupt leaves behind (`settle`); after a normal turn the
-    ///   session is already "done" and stays so.
+    ///   happen mid-turn, so it never overwrites a session already recorded.
+    /// * Waits are tracked per agent: a background subagent finishing a tool
+    ///   must not clear a permission dialog the main agent still has open.
+    /// * `PermissionDenied` answers a permission wait just as `PostToolUse` does.
+    /// * `StopFailure` ends the turn on an API error, instead of `Stop`.
     public var action: Action {
         switch event {
         case "SessionStart": return .begin
-        case "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure": return .set(.working)
-        case "PermissionRequest": return .set(.waiting)
+        case "UserPromptSubmit": return .prompt
+        case "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionDenied": return .work
+        case "PermissionRequest": return .awaitPermission
         case "Notification":
-            guard let type = notificationType else { return .set(.waiting) }
-            if Self.waitingNotifications.contains(type) { return .set(.waiting) }
-            return type == "idle_prompt" ? .settle : .ignore
-        case "Stop": return .set(.done)
+            switch notificationType {
+            case nil, "permission_prompt": return .awaitPermission
+            case "idle_prompt": return .settle
+            case let type? where Self.inputNotifications.contains(type): return .awaitInput
+            case let type? where Self.answeredNotifications.contains(type): return .work
+            default: return .ignore
+            }
+        case "Stop", "StopFailure": return .finish
         case "SessionEnd": return .end
         default: return .ignore
         }
     }
+
+    var agentKey: String { agentID ?? "main" }
 }
 
 /// Per-session state files shared by the hook (writer) and the app (reader).
 ///
-/// One small file per session, so concurrent hooks from parallel sessions
-/// never touch the same file and need no locking. Each write is atomic
-/// (temp file + rename), so the app never reads half a file.
+/// One small file per session. Hooks of the same session can run in parallel
+/// (a subagent's tool finishing while the main agent asks for permission), and
+/// each one reads, changes and rewrites the file, so writers take a lock.
+/// Every write is atomic (temp file + rename), so the app reads without one.
 public struct AgentSessionStore {
     public let directory: URL
 
     /// A session nobody has heard from in this long is treated as gone: a
     /// crashed or killed Claude Code never sends `SessionEnd`.
     public static let staleAfter: TimeInterval = 3 * 3600
-    /// "working" with no hook for this long is treated as idle. Pressing Esc to
-    /// interrupt a turn fires no hook, so the session would otherwise stay blue
-    /// until the next prompt. Tool calls report every step, so a real turn
-    /// stays well inside this.
+    /// "working" with no hook for this long is treated as idle, in case the
+    /// `idle_prompt` after an Esc never comes. Tool calls report every step,
+    /// so a real turn stays well inside this.
     public static let workingTimeout: TimeInterval = 15 * 60
     /// Files older than this are deleted when the app reads the directory.
     public static let pruneAfter: TimeInterval = 7 * 24 * 3600
@@ -118,36 +133,64 @@ public struct AgentSessionStore {
             .appendingPathComponent("Library/Application Support/MicroKeys/claude-sessions")
     }
 
-    private struct Record: Codable {
+    /// `state` is idle, working or done; `waits` names who is blocked on you
+    /// ("permission:<agent>", "input:<agent>"). Any wait shows as waiting.
+    struct Record: Codable, Equatable {
         var state: AgentState
+        var waits: [String]?
         var ts: TimeInterval
+
+        var shown: AgentState { waits?.isEmpty == false ? .waiting : state }
     }
 
     /// Apply one hook. Never throws: a status light is not worth failing a hook over.
     public func apply(_ input: ClaudeHookInput, now: Date = Date()) {
+        let action = input.action
+        guard action != .ignore else { return }
         let file = url(for: input.sessionID)
-        switch input.action {
-        case .ignore:
-            return
-        case .end:
-            try? FileManager.default.removeItem(at: file)
-        case .begin:
-            guard !FileManager.default.fileExists(atPath: file.path) else { return }
-            write(.idle, to: file, now: now)
-        case .settle:
-            guard let data = try? Data(contentsOf: file),
-                  let record = try? JSONDecoder().decode(Record.self, from: data),
-                  record.state == .working else { return }
-            write(.idle, to: file, now: now)
-        case .set(let state):
-            write(state, to: file, now: now)
-        }
-    }
-
-    private func write(_ state: AgentState, to file: URL, now: Date) {
-        guard let data = try? JSONEncoder().encode(Record(state: state, ts: now.timeIntervalSince1970)) else { return }
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try? data.write(to: file, options: .atomic)
+        withLock {
+            let old = read(file)
+            if action == .end {
+                try? FileManager.default.removeItem(at: file)
+                return
+            }
+            // Only these may create a session; the rest of a session's events
+            // come after SessionStart or UserPromptSubmit anyway.
+            guard var record = old ?? ([.begin, .prompt, .work, .awaitPermission, .awaitInput, .finish].contains(action)
+                ? Record(state: .idle, waits: nil, ts: 0) : nil) else { return }
+            var waits = Set(record.waits ?? [])
+            let agent = input.agentKey
+            switch action {
+            case .begin:
+                if old != nil { return }
+            case .prompt:
+                record.state = .working
+                waits.removeAll()
+            case .work:
+                record.state = .working
+                waits.remove("permission:\(agent)")
+                waits.remove("input:\(agent)")
+            case .awaitPermission:
+                waits.insert("permission:\(agent)")
+            case .awaitInput:
+                waits.insert("input:\(agent)")
+            case .finish:
+                record.state = .done
+                waits.remove("permission:main")
+                waits.remove("input:main")
+            case .settle:
+                guard record.state == .working else { return }
+                record.state = .idle
+            case .end, .ignore:
+                return
+            }
+            record.waits = waits.isEmpty ? nil : waits.sorted()
+            record.ts = now.timeIntervalSince1970
+            if let data = try? JSONEncoder().encode(record) {
+                try? data.write(to: file, options: .atomic)
+            }
+        }
     }
 
     /// The live sessions' states. Prunes files nobody has touched in a week.
@@ -157,15 +200,30 @@ public struct AgentSessionStore {
         var out: [AgentState] = []
         for name in names where name.hasSuffix(".json") {
             let file = directory.appendingPathComponent(name)
-            guard let data = try? Data(contentsOf: file),
-                  let record = try? JSONDecoder().decode(Record.self, from: data)
-            else { continue }
+            guard let record = read(file) else { continue }
             let age = now.timeIntervalSince1970 - record.ts
             if age > Self.pruneAfter { try? fm.removeItem(at: file); continue }
             if age > Self.staleAfter { continue }
-            out.append(record.state == .working && age > Self.workingTimeout ? .idle : record.state)
+            let shown = record.shown
+            out.append(shown == .working && age > Self.workingTimeout ? .idle : shown)
         }
         return out
+    }
+
+    private func read(_ file: URL) -> Record? {
+        guard let data = try? Data(contentsOf: file) else { return nil }
+        return try? JSONDecoder().decode(Record.self, from: data)
+    }
+
+    /// An exclusive flock on `.lock` in the directory, released on return.
+    /// Without the lock the work still runs: a missed update beats a hung hook.
+    private func withLock(_ body: () -> Void) {
+        let fd = open(directory.appendingPathComponent(".lock").path, O_RDWR | O_CREAT, 0o644)
+        guard fd >= 0 else { body(); return }
+        defer { close(fd) }
+        flock(fd, LOCK_EX)
+        defer { flock(fd, LOCK_UN) }
+        body()
     }
 
     /// Session ids are UUIDs; anything else is reduced to a safe file name.
@@ -177,19 +235,96 @@ public struct AgentSessionStore {
     }
 }
 
-/// The one message MicroKeys ever sends to the pad.
+/// The only two messages MicroKeys ever sends to the pad.
 ///
-/// `v.oai.thstatus` sets the six agent-status slots. It is runtime state only:
-/// nothing is written to the pad's flash, and the pad forgets it after a few
-/// quiet hours or a reconnect. There is deliberately no way to send any other
-/// method - no generic RPC - so the app cannot touch the pad's configuration.
+/// * `v.oai.thstatus` sets the six agent-status slots. It is runtime state:
+///   nothing is written to the pad's flash, and the pad forgets it after a few
+///   quiet hours or a reconnect.
+/// * `device.status` is a read-only query, sent on connect to learn which
+///   framing this pad and transport accept (see `Framing`).
+///
+/// There is deliberately no way to send any other method - no generic RPC -
+/// so the app cannot touch the pad's configuration.
+public enum PadCommand: Equatable {
+    case status(AgentState?)
+    case probe
+
+    public var method: String {
+        switch self {
+        case .status: return "v.oai.thstatus"
+        case .probe: return "device.status"
+        }
+    }
+
+    /// The JSON-RPC request.
+    public func request(id: Int) -> Data {
+        var message: [String: Any] = ["method": method, "id": id]
+        if case .status(let state) = self { message["params"] = StatusLight.params(state) }
+        return (try? JSONSerialization.data(withJSONObject: message, options: [.sortedKeys])) ?? Data()
+    }
+}
+
+/// How requests are cut into output reports. Pads disagree, and a wrongly
+/// framed write still returns success and is silently dropped, so the app
+/// finds the right one by waiting for a `device.status` reply.
+///
+/// * Codex Micro (freemicro's notes): USB takes 63-byte reports with no
+///   report id, Bluetooth 64 bytes starting with 0x06; messages end in CRLF.
+/// * Creator Micro 2 on firmware 0.6.2 over USB: 64 bytes with 0x06, no CRLF,
+///   verified on hardware.
+public struct Framing: Equatable, CustomStringConvertible {
+    /// 64-byte report starting with the report id, rather than 63 bytes without.
+    public var prefixed: Bool
+    /// Message ends in CRLF.
+    public var terminated: Bool
+
+    public init(prefixed: Bool, terminated: Bool) {
+        self.prefixed = prefixed
+        self.terminated = terminated
+    }
+
+    public var description: String {
+        (prefixed ? "64-byte, report id first" : "63-byte") + (terminated ? ", CRLF" : ", no CRLF")
+    }
+
+    /// The order to try on a transport: the documented framing first, then the
+    /// other size, then both without CRLF. Terminated ones go first so a
+    /// firmware that waits for CRLF is never left holding half a message.
+    public static func candidates(transport: String) -> [Framing] {
+        let bluetooth = transport.lowercased().contains("bluetooth")
+        return [true, false].flatMap { terminated in
+            [bluetooth, !bluetooth].map { Framing(prefixed: $0, terminated: terminated) }
+        }
+    }
+
+    /// Split a request into output reports: `[0x06]?[0x02][len][≤61 bytes]`.
+    public func frames(_ payload: Data) -> [[UInt8]] {
+        let bytes = [UInt8](payload) + (terminated ? [0x0D, 0x0A] : [])
+        let size = prefixed ? 64 : 63
+        let head = prefixed ? 1 : 0
+        var out: [[UInt8]] = []
+        var offset = 0
+        repeat {
+            let n = min(61, bytes.count - offset)
+            var frame = [UInt8](repeating: 0, count: size)
+            if prefixed { frame[0] = FrameDecoder.reportID }
+            frame[head] = FrameDecoder.opcodeData
+            frame[head + 1] = UInt8(n)
+            frame.replaceSubrange((head + 2)..<(head + 2 + n), with: bytes[offset..<(offset + n)])
+            out.append(frame)
+            offset += n
+        } while offset < bytes.count
+        return out
+    }
+}
+
+/// The `thstatus` payload.
 ///
 /// All six slots get the same colour with `syncAmbientLighting`, which makes
 /// the ring around the case follow them on every layer, including layers
 /// without AG keys. Field names must be spelled out (`color`, not `c`):
 /// firmware 0.6.2 ignores the short forms without an error.
 public enum StatusLight {
-    public static let method = "v.oai.thstatus"
     public static let slots = 0..<6
 
     struct Look: Equatable {
@@ -223,31 +358,6 @@ public enum StatusLight {
             ]
         }
     }
-
-    /// The full JSON-RPC request.
-    public static func request(_ state: AgentState?, id: Int) -> Data {
-        let message: [String: Any] = ["method": method, "params": params(state), "id": id]
-        return (try? JSONSerialization.data(withJSONObject: message, options: [.sortedKeys])) ?? Data()
-    }
-
-    /// Split a request into 64-byte output reports: `[0x06][0x02][len][≤61 bytes]`.
-    /// The report id stays in byte 0; IOHIDDeviceSetReport expects it there.
-    public static func frames(_ payload: Data) -> [[UInt8]] {
-        let bytes = [UInt8](payload)
-        var out: [[UInt8]] = []
-        var offset = 0
-        repeat {
-            let n = min(61, bytes.count - offset)
-            var frame = [UInt8](repeating: 0, count: 64)
-            frame[0] = FrameDecoder.reportID
-            frame[1] = FrameDecoder.opcodeData
-            frame[2] = UInt8(n)
-            frame.replaceSubrange(3..<(3 + n), with: bytes[offset..<(offset + n)])
-            out.append(frame)
-            offset += n
-        } while offset < bytes.count
-        return out
-    }
 }
 
 /// The `hooks` block users paste into `~/.claude/settings.json`.
@@ -255,7 +365,7 @@ public enum ClaudeHooks {
     /// No matchers: every Notification type goes to the hook, which decides.
     public static let events = [
         "SessionStart", "UserPromptSubmit", "PostToolUse", "PostToolUseFailure",
-        "PermissionRequest", "Notification", "Stop", "SessionEnd",
+        "PermissionRequest", "PermissionDenied", "Notification", "Stop", "StopFailure", "SessionEnd",
     ]
 
     public static func settingsSnippet(executable: String) -> String {

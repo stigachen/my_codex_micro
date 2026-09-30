@@ -19,8 +19,8 @@
 Codex Micro 的按键不发标准键盘扫描码，所有输入都通过一条厂商 HID 通道（Report ID 6）以 JSON-RPC 的形式发出，
 协议由 [freemicro](https://github.com/eliBenven/freemicro) 项目逆向并验证。MicroKeys 用 IOKit 以**共享方式**打开设备，
 只读事件，因此和 ChatGPT 桌面端互不干扰；收到按键后用 CGEvent 合成系统按键。
-唯一的例外是可选的 Claude Code 状态灯：开启后会发送状态灯颜色（`v.oai.thstatus`），这是运行时状态，不写设备存储，
-代码里也没有发送其他消息的途径。
+唯一的例外是可选的 Claude Code 状态灯：开启后会发送状态灯颜色（`v.oai.thstatus`），连接后先用一次只读的 `device.status`
+确认写入格式。两者都是运行时的，不写设备存储，代码里也没有发送其他消息的途径。
 
 ```
 Codex Micro ──HID(Report 6, JSON)──▶ PadMonitor ──▶ FrameDecoder ──▶ Mapper ──▶ CGKeySynthesizer ──▶ 系统

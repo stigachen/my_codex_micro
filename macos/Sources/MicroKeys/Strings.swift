@@ -59,6 +59,7 @@ enum S {
     case statusLight, statusLightNow(String, Int), copyHooks, copiedHooksTitle, copiedHooksBody
     case agentState(AgentState?)
     case logStatusLightOn, logStatusLightOff, logStatusLight(String), logSendFailed(String)
+    case logLinkReady(String), logLinkUnverified(String)
 
     var text: String {
         let zh = L10n.language == .zhHans
@@ -180,6 +181,10 @@ enum S {
         case .logStatusLightOn: return zh ? "Claude Code 状态灯已开启" : "Claude Code status light on"
         case .logStatusLightOff: return zh ? "Claude Code 状态灯已关闭" : "Claude Code status light off"
         case .logStatusLight(let s): return zh ? "状态灯 → \(s)" : "Status light → \(s)"
+        case .logLinkReady(let f): return zh ? "键盘应答了状态查询，写入格式：\(f)" : "Pad answered the status query; write framing: \(f)"
+        case .logLinkUnverified(let f): return zh
+            ? "键盘对各种写入格式都没有应答，先按 \(f) 发送（未验证，状态灯可能不亮）"
+            : "Pad answered none of the write framings; sending as \(f), unverified (the light may stay dark)"
         case .logSendFailed(let e): return zh ? "向键盘发送状态失败：\(e)" : "Could not send the status to the pad: \(e)"
         }
     }

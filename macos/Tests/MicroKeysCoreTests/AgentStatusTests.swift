@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import MicroKeysCore
 
-private func hook(_ event: String, _ session: String = "s1", type: String? = nil) -> ClaudeHookInput {
-    ClaudeHookInput(event: event, sessionID: session, notificationType: type)
+private func hook(_ event: String, _ session: String = "s1", type: String? = nil, agent: String? = nil) -> ClaudeHookInput {
+    ClaudeHookInput(event: event, sessionID: session, notificationType: type, agentID: agent)
 }
 
 private func tempStore() -> AgentSessionStore {
@@ -15,24 +15,29 @@ private func tempStore() -> AgentSessionStore {
     @Test func parsesHookPayload() {
         let json = #"{"session_id":"abc-123","cwd":"/tmp","hook_event_name":"Notification","notification_type":"permission_prompt"}"#
         #expect(ClaudeHookInput.parse(Data(json.utf8)) == hook("Notification", "abc-123", type: "permission_prompt"))
+        let sub = #"{"session_id":"abc","hook_event_name":"PostToolUse","agent_id":"agent-7"}"#
+        #expect(ClaudeHookInput.parse(Data(sub.utf8))?.agentID == "agent-7")
         #expect(ClaudeHookInput.parse(Data(#"{"hook_event_name":"Stop"}"#.utf8))?.sessionID == "unknown")
         #expect(ClaudeHookInput.parse(Data("not json".utf8)) == nil)
         #expect(ClaudeHookInput.parse(Data(#"{"session_id":"x"}"#.utf8)) == nil)
         #expect(ClaudeHookInput.parse(Data()) == nil)
     }
 
-    @Test func eventsMapToStates() {
+    @Test func eventsMapToActions() {
         #expect(hook("SessionStart").action == .begin)
-        #expect(hook("UserPromptSubmit").action == .set(.working))
-        #expect(hook("PostToolUse").action == .set(.working))
-        #expect(hook("PostToolUseFailure").action == .set(.working))
-        #expect(hook("PermissionRequest").action == .set(.waiting))
-        #expect(hook("Notification", type: "permission_prompt").action == .set(.waiting))
-        #expect(hook("Notification", type: "elicitation_dialog").action == .set(.waiting))
-        #expect(hook("Notification").action == .set(.waiting))
+        #expect(hook("UserPromptSubmit").action == .prompt)
+        #expect(hook("PostToolUse").action == .work)
+        #expect(hook("PostToolUseFailure").action == .work)
+        #expect(hook("PermissionDenied").action == .work)
+        #expect(hook("PermissionRequest").action == .awaitPermission)
+        #expect(hook("Notification", type: "permission_prompt").action == .awaitPermission)
+        #expect(hook("Notification").action == .awaitPermission)
+        #expect(hook("Notification", type: "elicitation_dialog").action == .awaitInput)
+        #expect(hook("Notification", type: "elicitation_response").action == .work)
         #expect(hook("Notification", type: "idle_prompt").action == .settle)
         #expect(hook("Notification", type: "auth_success").action == .ignore)
-        #expect(hook("Stop").action == .set(.done))
+        #expect(hook("Stop").action == .finish)
+        #expect(hook("StopFailure").action == .finish)
         #expect(hook("SessionEnd").action == .end)
         #expect(hook("SubagentStop").action == .ignore)
     }
@@ -63,6 +68,64 @@ private func tempStore() -> AgentSessionStore {
         #expect(store.states() == [.done])
         store.apply(hook("SessionEnd"))
         #expect(store.states().isEmpty)
+    }
+
+    @Test func subagentToolsDoNotClearTheMainAgentsWait() {
+        let store = tempStore()
+        defer { try? FileManager.default.removeItem(at: store.directory) }
+        store.apply(hook("UserPromptSubmit"))
+        store.apply(hook("PermissionRequest"))
+        store.apply(hook("PostToolUse", agent: "bg-1"))          // a background subagent keeps going
+        store.apply(hook("PostToolUseFailure", agent: "bg-1"))
+        #expect(store.states() == [.waiting])
+        store.apply(hook("PostToolUse"))                          // the main agent's tool ran: answered
+        #expect(store.states() == [.working])
+
+        // A subagent's own permission request is cleared by its own tool, not the main one's.
+        store.apply(hook("PermissionRequest", agent: "bg-1"))
+        store.apply(hook("PostToolUse"))
+        #expect(store.states() == [.waiting])
+        store.apply(hook("PermissionDenied", agent: "bg-1"))
+        #expect(store.states() == [.working])
+    }
+
+    @Test func promptAndStopClearWaits() {
+        let store = tempStore()
+        defer { try? FileManager.default.removeItem(at: store.directory) }
+        store.apply(hook("PermissionRequest"))
+        store.apply(hook("Stop"))                                  // e.g. denied with Esc, then the turn ended
+        #expect(store.states() == [.done])
+
+        store.apply(hook("PermissionRequest", agent: "bg-1"))
+        store.apply(hook("Notification", type: "elicitation_dialog"))
+        store.apply(hook("Stop"))                                  // the subagent is still blocked on you
+        #expect(store.states() == [.waiting])
+        store.apply(hook("UserPromptSubmit"))                      // you typed: everything is answered
+        #expect(store.states() == [.working])
+    }
+
+    @Test func apiErrorEndsTheTurn() {
+        let store = tempStore()
+        defer { try? FileManager.default.removeItem(at: store.directory) }
+        store.apply(hook("UserPromptSubmit"))
+        store.apply(hook("StopFailure"))
+        #expect(store.states() == [.done])
+    }
+
+    @Test func parallelHooksDoNotLoseUpdates() {
+        let store = tempStore()
+        defer { try? FileManager.default.removeItem(at: store.directory) }
+        store.apply(hook("UserPromptSubmit"))
+        // Many agents asking at once; without the lock some would be lost.
+        DispatchQueue.concurrentPerform(iterations: 40) { i in
+            store.apply(hook("PermissionRequest", agent: "a\(i)"))
+        }
+        DispatchQueue.concurrentPerform(iterations: 39) { i in
+            store.apply(hook("PostToolUse", agent: "a\(i)"))
+        }
+        #expect(store.states() == [.waiting])                      // a39 still waits
+        store.apply(hook("PermissionDenied", agent: "a39"))
+        #expect(store.states() == [.working])
     }
 
     @Test func sessionStartMidTurnKeepsTheState() {
@@ -113,7 +176,7 @@ private func tempStore() -> AgentSessionStore {
         // Past staleAfter the session is gone; past pruneAfter the file too.
         #expect(store.states(now: t0.addingTimeInterval(AgentSessionStore.staleAfter + 1)).isEmpty)
         _ = store.states(now: t0.addingTimeInterval(AgentSessionStore.pruneAfter + 1))
-        #expect((try? FileManager.default.contentsOfDirectory(atPath: store.directory.path))?.isEmpty == true)
+        #expect((try? FileManager.default.contentsOfDirectory(atPath: store.directory.path))?.filter { $0.hasSuffix(".json") }.isEmpty == true)
     }
 
     @Test func sessionIDsBecomeSafeFileNames() {
@@ -146,23 +209,50 @@ private func tempStore() -> AgentSessionStore {
         }
     }
 
-    @Test func requestIsThstatusAndFramesReassemble() throws {
-        let payload = StatusLight.request(.working, id: 7)
-        let object = try #require(try JSONSerialization.jsonObject(with: payload) as? [String: Any])
-        #expect(object["method"] as? String == "v.oai.thstatus")
-        #expect(object["id"] as? Int == 7)
-
-        let frames = StatusLight.frames(payload)
-        #expect(frames.count == (payload.count + 60) / 61)
-        var joined: [UInt8] = []
-        for frame in frames {
-            #expect(frame.count == 64)
-            #expect(frame[0] == 0x06 && frame[1] == 0x02)
-            let n = Int(frame[2])
-            #expect(n >= 1 && n <= 61)
-            joined += frame[3..<(3 + n)]
+    @Test func onlyTwoMethodsExist() throws {
+        for (command, method) in [(PadCommand.status(.working), "v.oai.thstatus"), (.status(nil), "v.oai.thstatus"), (.probe, "device.status")] {
+            let object = try #require(try JSONSerialization.jsonObject(with: command.request(id: 7)) as? [String: Any])
+            #expect(object["method"] as? String == method)
+            #expect(object["id"] as? Int == 7)
         }
-        #expect(Data(joined) == payload)
+        #expect(PadCommand.probe.request(id: 1).count < 61)          // one frame, no params
+    }
+
+    @Test func framingCandidatesFollowTheTransport() {
+        #expect(Framing.candidates(transport: "USB") == [
+            Framing(prefixed: false, terminated: true), Framing(prefixed: true, terminated: true),
+            Framing(prefixed: false, terminated: false), Framing(prefixed: true, terminated: false),
+        ])
+        #expect(Framing.candidates(transport: "Bluetooth Low Energy").first == Framing(prefixed: true, terminated: true))
+    }
+
+    /// Every framing must split a long request into reports the pad can put
+    /// back together, with exactly one message boundary when terminated.
+    @Test func framesCarryWholeMessages() throws {
+        let payload = PadCommand.status(.waiting).request(id: 42)
+        #expect(payload.count > 61 * 3)                                // really multi-report
+        for framing in Framing.candidates(transport: "USB") {
+            let frames = framing.frames(payload)
+            let head = framing.prefixed ? 1 : 0
+            var joined: [UInt8] = []
+            for frame in frames {
+                #expect(frame.count == (framing.prefixed ? 64 : 63))
+                if framing.prefixed { #expect(frame[0] == 0x06) }
+                #expect(frame[head] == 0x02)
+                let n = Int(frame[head + 1])
+                #expect(n >= 1 && n <= 61)
+                joined += frame[(head + 2)..<(head + 2 + n)]
+            }
+            if framing.terminated {
+                #expect(Data(joined) == payload + Data([0x0D, 0x0A]))
+                // The same decoder the pad's replies go through sees exactly one message.
+                var decoder = FrameDecoder()
+                let events = frames.flatMap { decoder.feed($0) }
+                #expect(events == [.other(method: "v.oai.thstatus")])
+            } else {
+                #expect(Data(joined) == payload)
+            }
+        }
     }
 
     @Test func hooksSnippetIsValidJSON() throws {

@@ -12,7 +12,10 @@ public enum PadEvent: Equatable {
     case key(id: String, act: Int)
     /// `v.oai.rad` - analogue thumbstick, angle and distance both 0…1.
     case joystick(angle: Double, distance: Double)
-    /// Anything else: RPC replies, unknown notifications.
+    /// A reply to a request, carrying the request's `id`. Replies reach every
+    /// program sharing the device, so the id is what says whose it is.
+    case reply(method: String, id: Int)
+    /// Anything else: unknown notifications.
     case other(method: String)
 
     /// Parse one CRLF-delimited JSON line. Accepts both the compact form
@@ -28,6 +31,9 @@ public enum PadEvent: Equatable {
                   let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
             else { return nil }
             let method = (object["m"] ?? object["method"]) as? String ?? ""
+            if let id = (object["id"] as? NSNumber)?.intValue, object["result"] != nil || object["error"] != nil {
+                return .reply(method: method, id: id)
+            }
             let params = object["p"] ?? object["params"]
             switch method {
             case "v.oai.hid":

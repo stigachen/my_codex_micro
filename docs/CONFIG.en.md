@@ -330,8 +330,10 @@ The copied block looks like this (one line per event, all running the same comma
     "PostToolUse":        [ …same… ],
     "PostToolUseFailure": [ …same… ],
     "PermissionRequest":  [ …same… ],
+    "PermissionDenied":   [ …same… ],
     "Notification":       [ …same… ],
     "Stop":               [ …same… ],
+    "StopFailure":        [ …same… ],
     "SessionEnd":         [ …same… ]
   }
 }
@@ -343,9 +345,11 @@ The "Now: …" line in the menu shows what the ring currently stands for and how
 
 * The hook only writes this session's state to a small file under `~/Library/Application Support/MicroKeys/claude-sessions/`.
   It takes about 10 ms, always exits successfully so it can never slow down or break Claude Code, and never touches the pad.
-* The menu bar app reads those files and sends the pad exactly one kind of message: `v.oai.thstatus` (the status-light colour).
-  That is runtime state only, **nothing is written to the pad's storage**: no layers, keys or lighting settings change,
-  and the pad forgets it after a replug or a few quiet hours. The code has no path for sending anything else.
+* The menu bar app reads those files and sends the pad exactly two kinds of message: `v.oai.thstatus` (the status-light colour),
+  and, before the first light after each connect, one `device.status` (a read-only query that finds which write framing this pad
+  and transport accept; a wrongly framed write is silently dropped by the pad). Both are runtime only,
+  **nothing is written to the pad's storage**: no layers, keys or lighting settings change, and the pad forgets the light after
+  a replug or a few quiet hours. The code has no path for sending anything else. The "write framing" line in the log records the result.
 * With the option unchecked nothing is sent at all; checked but with no session busy, nothing is sent either.
   While a light is showing it is resent every 30 s, because the pad forgets it after a long silence.
 
@@ -353,7 +357,10 @@ The "Now: …" line in the menu shows what the ring currently stands for and how
 
 * Pressing Esc to interrupt a turn fires no hook, so the ring stays blue until the "waiting for input" notification about a minute
   later, or your next prompt; after 15 minutes it is treated as idle regardless.
-* After denying a permission request the ring may stay amber until your next prompt.
+* Waits are tracked per subagent (background ones included): a subagent finishing a tool does not clear a permission dialog
+  the main agent still has open, and vice versa.
+* After denying a permission request, if Claude Code sends no `PermissionDenied`, the ring stays amber until the turn ends or your next prompt.
+* A turn that ends on an API error (rate limit, authentication, …) shows as finished.
 * A session that ends without sending `SessionEnd` (say, a killed process) is ignored after 3 hours.
 * The ChatGPT desktop app drives the same status lights; running both at once, they overwrite each other.
 * Before deleting the app, remove these hooks from `settings.json`, or Claude Code will report hook errors; `--uninstall` reminds you.
