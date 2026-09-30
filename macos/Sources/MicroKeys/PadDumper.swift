@@ -18,8 +18,8 @@ enum PadDumper {
 
         pad.onStatus = { status in
             switch status {
-            case .connected(let transport):
-                print(L10n.pick("\(stamp()) 已连接（\(transport)）", "\(stamp()) connected (\(transport))"))
+            case .connected(let transport, let name):
+                print(L10n.pick("\(stamp()) \(name) 已连接（\(transport)）", "\(stamp()) \(name) connected (\(transport))"))
             case .disconnected:
                 print(L10n.pick("\(stamp()) 未连接", "\(stamp()) disconnected"))
             case .openFailed(let reason):

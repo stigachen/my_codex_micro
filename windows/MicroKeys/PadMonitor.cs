@@ -30,6 +30,8 @@ internal sealed class PadMonitor : IDisposable
         public required HidStream Stream;
         public required Thread Reader;
         public required bool Bluetooth;
+        /// <summary>The product name, for the menu and the log.</summary>
+        public required string Name;
         public volatile bool Stop;
     }
 
@@ -38,6 +40,9 @@ internal sealed class PadMonitor : IDisposable
     private string? _activePath;
     private PadState _state = PadState.Disconnected;
     private string _detail = "";
+
+    /// <summary>The connected pad's product name; empty when none is connected.</summary>
+    public string ActiveName { get; private set; } = "";
     private bool _disposed;
 
     public PadMonitor(SynchronizationContext ui)
@@ -100,11 +105,11 @@ internal sealed class PadMonitor : IDisposable
             return;
         }
         stream.ReadTimeout = Timeout.Infinite;
-        var entry = new Entry { Device = d, Stream = stream, Reader = null!, Bluetooth = Transport.IsBluetooth(d.DevicePath) };
+        var entry = new Entry { Device = d, Stream = stream, Reader = null!, Bluetooth = Transport.IsBluetooth(d.DevicePath), Name = S.PadLabel(SafeProduct(d)) };
         entry.Reader = new Thread(() => ReadLoop(entry)) { IsBackground = true, Name = "MicroKeys HID reader" };
         _entries[d.DevicePath] = entry;
         entry.Reader.Start();
-        Log.Info(S.LogConnected(Transport.Label(d.DevicePath)));
+        Log.Info(S.LogConnected(entry.Name, Transport.Label(d.DevicePath)));
     }
 
     private void ReadLoop(Entry entry)
@@ -135,7 +140,7 @@ internal sealed class PadMonitor : IDisposable
         if (!_entries.Remove(path, out var entry)) return;
         entry.Stop = true;
         try { entry.Stream.Dispose(); } catch (Exception) { }
-        Log.Info(S.LogDisconnected(Transport.Label(path)) + $" ({why})");
+        Log.Info(S.LogDisconnected(entry.Name, Transport.Label(path)) + $" ({why})");
     }
 
     /// <summary>Prefer the wired link; a cable does not drop.</summary>
@@ -145,9 +150,10 @@ internal sealed class PadMonitor : IDisposable
         _activePath = chosen?.Device.DevicePath;
         var newState = chosen is null ? (_state == PadState.OpenFailed ? PadState.OpenFailed : PadState.Disconnected) : PadState.Connected;
         var newDetail = chosen is null ? _detail : Transport.Label(chosen.Device.DevicePath);
-        if (newState != _state || newDetail != _detail)
+        var newName = chosen?.Name ?? "";
+        if (newState != _state || newDetail != _detail || newName != ActiveName)
         {
-            _state = newState; _detail = newDetail;
+            _state = newState; _detail = newDetail; ActiveName = newName;
             StatusChanged?.Invoke(_state, _detail);
         }
     }

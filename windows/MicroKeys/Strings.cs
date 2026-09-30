@@ -40,9 +40,11 @@ internal static class S
     private static bool Zh => L10n.Language == Core.Language.ZhHans;
     private static string P(string zh, string en) => Zh ? zh : en;
 
-    public static string PadConnected(string t) => P($"Codex Micro：已连接（{t}）", $"Codex Micro: connected ({t})");
-    public static string PadDisconnected => P("Codex Micro：未连接（USB 或蓝牙均可）", "Codex Micro: not connected (USB or Bluetooth)");
-    public static string PadOpenFailed(string r) => P($"Codex Micro：打不开，{r}", $"Codex Micro: cannot open, {r}");
+    public static string PadConnected(string n, string t) => P($"{n}：已连接（{t}）", $"{n}: connected ({t})");
+    public static string PadDisconnected => P("Work Louder 键盘：未连接（USB 或蓝牙均可）", "Work Louder pad: not connected (USB or Bluetooth)");
+    public static string PadOpenFailed(string r) => P($"Work Louder 键盘：打不开，{r}", $"Work Louder pad: cannot open, {r}");
+    /// <summary>What to call a pad whose product string is unusable.</summary>
+    public static string PadLabel(string? product) => PadName.Display(product) ?? P("Work Louder 键盘", "Work Louder pad");
     public static string TransportBluetooth => P("蓝牙", "Bluetooth");
     public static string ConfigError(string e) => P($"❌ 配置错误：{e}", $"❌ Config error: {e}");
     public static string ConfigNoBindings => P("配置：没有任何绑定", "Config: no bindings");
@@ -73,14 +75,14 @@ internal static class S
     public static string TooltipRunning => P("MicroKeys：运行中", "MicroKeys: running");
     public static string TooltipProblem(string p) => P($"MicroKeys：{p}", $"MicroKeys: {p}");
     public static string ProblemConfig(string e) => P($"配置错误：{e}", $"config error: {e}");
-    public static string ProblemDisconnected => P("未连接 Codex Micro", "Codex Micro not connected");
+    public static string ProblemDisconnected => P("未连接 Work Louder 键盘", "Work Louder pad not connected");
     public static string LogStarted(string p) => P($"MicroKeys 启动，配置文件：{p}", $"MicroKeys started, config: {p}");
     public static string LogSeeded(string p) => P($"已生成示例配置：{p}", $"Wrote example config: {p}");
     public static string LogSeedFailed(string e) => P($"写入示例配置失败：{e}", $"Could not write example config: {e}");
     public static string LogLoaded(int n, string d) => P($"配置已加载：{n} 个绑定 {d}", $"Config loaded: {n} binding(s) {d}");
     public static string LogConfigError(string e) => P($"配置错误：{e}", $"Config error: {e}");
-    public static string LogConnected(string t) => P($"Codex Micro 已连接（{t}）", $"Codex Micro connected ({t})");
-    public static string LogDisconnected(string t) => P($"Codex Micro 已断开（{t}）", $"Codex Micro disconnected ({t})");
+    public static string LogConnected(string n, string t) => P($"{n} 已连接（{t}）", $"{n} connected ({t})");
+    public static string LogDisconnected(string n, string t) => P($"{n} 已断开（{t}）", $"{n} disconnected ({t})");
     public static string LogOpenFailed(string r) => P($"打开设备失败：{r}", $"Could not open the device: {r}");
 }
 
