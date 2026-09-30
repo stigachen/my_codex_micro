@@ -5,7 +5,7 @@ import Testing
 private func hook(_ event: String, _ session: String = "s1", type: String? = nil, agent: String? = nil,
                   tool: String? = nil, batch: [String] = []) -> ClaudeHookInput {
     ClaudeHookInput(event: event, sessionID: session, notificationType: type, agentID: agent,
-                    toolUseID: tool, batchToolUseIDs: batch)
+                    toolCall: tool, batchToolCalls: batch)
 }
 
 private func tempStore() -> AgentSessionStore {
@@ -17,14 +17,40 @@ private func tempStore() -> AgentSessionStore {
     @Test func parsesHookPayload() {
         let json = #"{"session_id":"abc-123","cwd":"/tmp","hook_event_name":"Notification","notification_type":"permission_prompt"}"#
         #expect(ClaudeHookInput.parse(Data(json.utf8)) == hook("Notification", "abc-123", type: "permission_prompt"))
-        let sub = #"{"session_id":"abc","hook_event_name":"PostToolUse","agent_id":"agent-7","tool_use_id":"toolu_1"}"#
-        #expect(ClaudeHookInput.parse(Data(sub.utf8)) == hook("PostToolUse", "abc", agent: "agent-7", tool: "toolu_1"))
-        let batch = #"{"session_id":"abc","hook_event_name":"PostToolBatch","tool_calls":[{"tool_use_id":"t1"},{"tool_use_id":"t2"}]}"#
-        #expect(ClaudeHookInput.parse(Data(batch.utf8))?.batchToolUseIDs == ["t1", "t2"])
-        #expect(ClaudeHookInput.parse(Data(#"{"hook_event_name":"Stop"}"#.utf8))?.sessionID == "unknown")
+        let sub = #"{"session_id":"abc","hook_event_name":"SubagentStop","agent_id":"agent-7"}"#
+        #expect(ClaudeHookInput.parse(Data(sub.utf8))?.agentID == "agent-7")
         #expect(ClaudeHookInput.parse(Data("not json".utf8)) == nil)
         #expect(ClaudeHookInput.parse(Data(#"{"session_id":"x"}"#.utf8)) == nil)
         #expect(ClaudeHookInput.parse(Data()) == nil)
+    }
+
+    /// The payload shapes from the hooks reference: PermissionRequest has
+    /// tool_name and tool_input but no tool_use_id; PostToolUse and
+    /// PostToolBatch add tool_use_id and the tool's output. The same call must
+    /// get the same fingerprint in all three, whatever the key order.
+    @Test func permissionRequestPairsWithItsToolEvents() throws {
+        let request = #"{"session_id":"s","hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"rm -rf node_modules","description":"Remove node_modules"},"permission_suggestions":[]}"#
+        let done = #"{"session_id":"s","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"description":"Remove node_modules","command":"rm -rf node_modules"},"tool_response":{"stdout":""},"tool_use_id":"toolu_01","duration_ms":12}"#
+        let other = #"{"session_id":"s","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"ls","description":"List"},"tool_use_id":"toolu_02"}"#
+        let batch = #"{"session_id":"s","hook_event_name":"PostToolBatch","tool_calls":[{"tool_name":"Read","tool_input":{"file_path":"/a"},"tool_use_id":"toolu_03","tool_response":"1\tx"},{"tool_name":"Bash","tool_input":{"command":"rm -rf node_modules","description":"Remove node_modules"},"tool_use_id":"toolu_01","tool_response":""}]}"#
+        let r = try #require(ClaudeHookInput.parse(Data(request.utf8)))
+        let d = try #require(ClaudeHookInput.parse(Data(done.utf8)))
+        let o = try #require(ClaudeHookInput.parse(Data(other.utf8)))
+        let b = try #require(ClaudeHookInput.parse(Data(batch.utf8)))
+        #expect(r.toolCall != nil)
+        #expect(r.toolCall == d.toolCall)
+        #expect(r.toolCall != o.toolCall)
+        #expect(b.batchToolCalls.count == 2)
+        #expect(b.batchToolCalls.contains(r.toolCall!))
+
+        let store = tempStore()
+        defer { try? FileManager.default.removeItem(at: store.directory) }
+        store.apply(hook("UserPromptSubmit", "s"))
+        store.apply(r)
+        store.apply(o)                                         // a different call finishing
+        #expect(store.states() == [.waiting])
+        store.apply(d)
+        #expect(store.states() == [.working])
     }
 
     @Test func eventsMapToActions() {
@@ -35,7 +61,7 @@ private func tempStore() -> AgentSessionStore {
         #expect(hook("PermissionDenied").action == .work)
         #expect(hook("PostToolBatch").action == .batchDone)
         #expect(hook("PermissionRequest").action == .awaitPermission)
-        #expect(hook("Notification", type: "permission_prompt").action == .ignore)
+        #expect(hook("Notification", type: "permission_prompt").action == .promptOpen)
         #expect(hook("Notification").action == .ignore)
         #expect(hook("Notification", type: "elicitation_dialog").action == .awaitInput)
         #expect(hook("Notification", type: "elicitation_response").action == .answered)
@@ -99,12 +125,44 @@ private func tempStore() -> AgentSessionStore {
         #expect(store.states() == [.working])
     }
 
+    /// Review #14: a sandboxed command's network request fires no
+    /// PermissionRequest; the permission_prompt notification is the only signal.
+    @Test func sandboxNetworkPromptWaitsUntilTheBatchResolves() {
+        let store = tempStore()
+        defer { try? FileManager.default.removeItem(at: store.directory) }
+        store.apply(hook("UserPromptSubmit"))
+        store.apply(hook("Notification", type: "permission_prompt"))
+        #expect(store.states() == [.waiting])
+        store.apply(hook("PostToolUse", tool: "unrelated"))             // cannot tell it apart: keep waiting
+        #expect(store.states() == [.waiting])
+        store.apply(hook("PostToolBatch", batch: ["bash"]))
+        #expect(store.states() == [.working])
+
+        // The same prompt after a Stop, and after your next prompt, is cleared too.
+        store.apply(hook("Notification", type: "permission_prompt"))
+        store.apply(hook("Stop"))
+        #expect(store.states() == [.done])
+    }
+
+    /// The usual case: PermissionRequest reported the dialog, and six seconds
+    /// later the notification reports it again. That must not leave a second,
+    /// unpaired wait behind once the call is answered.
+    @Test func promptNotificationForAKnownDialogAddsNothing() {
+        let store = tempStore()
+        defer { try? FileManager.default.removeItem(at: store.directory) }
+        store.apply(hook("UserPromptSubmit"))
+        store.apply(hook("PermissionRequest", tool: "bash"))
+        store.apply(hook("Notification", type: "permission_prompt"))
+        store.apply(hook("PostToolUse", tool: "bash"))
+        #expect(store.states() == [.working])
+    }
+
     @Test func batchEndAnswersItsCallsAndUnpairedWaits() {
         let store = tempStore()
         defer { try? FileManager.default.removeItem(at: store.directory) }
         store.apply(hook("UserPromptSubmit"))
         store.apply(hook("PermissionRequest", tool: "x"))                    // answered with edits, say
-        store.apply(hook("PermissionRequest"))                               // no tool_use_id at all
+        store.apply(hook("PermissionRequest"))                               // no tool name at all
         store.apply(hook("PermissionRequest", agent: "bg-1", tool: "y"))
         store.apply(hook("PostToolBatch", batch: ["x", "z"]))
         #expect(store.states() == [.waiting])                                // bg-1's call is not in this batch
@@ -127,7 +185,7 @@ private func tempStore() -> AgentSessionStore {
         let store = tempStore()
         defer { try? FileManager.default.removeItem(at: store.directory) }
         store.apply(hook("PermissionRequest", tool: "t"))
-        store.apply(hook("Stop"))                                  // e.g. rejected with Esc, then the turn ended
+        store.apply(hook("Stop"))                                  // e.g. denied by hand, then the turn ended
         #expect(store.states() == [.done])
 
         store.apply(hook("PermissionRequest", agent: "bg-1", tool: "u"))

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// What a Claude Code session is doing, as the pad's lights show it.
@@ -32,20 +33,32 @@ public struct ClaudeHookInput: Equatable {
     /// Set when the hook fired inside a subagent. Subagents share their
     /// parent's `session_id`, so this is what tells their events apart.
     public var agentID: String?
-    /// The tool call a tool event is about. Permission and tool hooks all
-    /// carry it, which is what pairs a permission request with its answer.
-    public var toolUseID: String?
-    /// `PostToolBatch`: every call of the parallel batch that just resolved.
-    public var batchToolUseIDs: [String]
+    /// Which tool call a tool event is about, as a fingerprint of its tool
+    /// name and arguments. `PermissionRequest` has no `tool_use_id` - only
+    /// `tool_name` and `tool_input` - so this is what pairs a permission
+    /// request with the `PostToolUse` that answers it.
+    public var toolCall: String?
+    /// `PostToolBatch`: the fingerprints of every call in the batch.
+    public var batchToolCalls: [String]
 
     public init(event: String, sessionID: String, notificationType: String? = nil, agentID: String? = nil,
-                toolUseID: String? = nil, batchToolUseIDs: [String] = []) {
+                toolCall: String? = nil, batchToolCalls: [String] = []) {
         self.event = event
         self.sessionID = sessionID
         self.notificationType = notificationType
         self.agentID = agentID
-        self.toolUseID = toolUseID
-        self.batchToolUseIDs = batchToolUseIDs
+        self.toolCall = toolCall
+        self.batchToolCalls = batchToolCalls
+    }
+
+    /// A stable digest of a call's tool name and arguments (sorted-key JSON),
+    /// the same in every hook process. nil without a tool name.
+    static func fingerprint(_ call: [String: Any]) -> String? {
+        guard let name = call["tool_name"] as? String, !name.isEmpty else { return nil }
+        let input = call["tool_input"] ?? NSNull()
+        guard let data = try? JSONSerialization.data(withJSONObject: [name, input], options: [.sortedKeys, .fragmentsAllowed])
+        else { return nil }
+        return SHA256.hash(data: data).prefix(12).map { String(format: "%02x", $0) }.joined()
     }
 
     /// nil when the payload is not a hook payload at all.
@@ -57,10 +70,10 @@ public struct ClaudeHookInput: Equatable {
             guard let value = object[key] as? String, !value.isEmpty else { return nil }
             return value
         }
-        let batch = (object["tool_calls"] as? [[String: Any]])?.compactMap { $0["tool_use_id"] as? String } ?? []
+        let batch = (object["tool_calls"] as? [[String: Any]])?.compactMap(fingerprint) ?? []
         return ClaudeHookInput(event: event, sessionID: nonEmpty("session_id") ?? "unknown",
                                notificationType: nonEmpty("notification_type"), agentID: nonEmpty("agent_id"),
-                               toolUseID: nonEmpty("tool_use_id"), batchToolUseIDs: batch)
+                               toolCall: fingerprint(object), batchToolCalls: batch)
     }
 
     public enum Action: Equatable {
@@ -68,14 +81,19 @@ public struct ClaudeHookInput: Equatable {
         case begin
         /// You sent a prompt: working, and every pending wait is answered.
         case prompt
-        /// A tool call ran (or was denied): working, and a permission wait for
-        /// that same call is answered. Nothing else is.
+        /// A tool call ran (or auto mode denied it): working, and a permission
+        /// wait for that same call is answered. Nothing else is.
         case work
         /// A parallel batch resolved: working, and every wait of this agent's
         /// batch is over, including ones no tool event could be matched to.
         case batchDone
         /// A tool call is blocked on a permission decision.
         case awaitPermission
+        /// `permission_prompt`: a dialog has been open for about six seconds.
+        /// Usually the one `PermissionRequest` already reported; but a sandboxed
+        /// command's network request fires no `PermissionRequest`, so when this
+        /// agent has no wait on record it becomes an unpaired one.
+        case promptOpen
         /// This agent is blocked on some other input from you (an MCP question).
         case awaitInput
         /// You answered this agent's question.
@@ -95,12 +113,13 @@ public struct ClaudeHookInput: Equatable {
     ///
     /// * `SessionStart` also fires on resume and after a compaction, which can
     ///   happen mid-turn, so it never overwrites a session already recorded.
-    /// * A permission wait belongs to one tool call (`tool_use_id`). Tools run
-    ///   in parallel, within one agent and across subagents, so another call
-    ///   finishing says nothing about a dialog still open.
-    /// * The `permission_prompt` notification is ignored: it carries no tool
-    ///   call to pair with an answer, and `PermissionRequest` already reported
-    ///   the same dialog.
+    /// * A permission wait belongs to one tool call (`toolCall`). Tools run in
+    ///   parallel, within one agent and across subagents, so another call
+    ///   finishing says nothing about a dialog still open. A wait that cannot
+    ///   be paired (arguments edited in the dialog, a sandbox network request)
+    ///   stays until its batch resolves, the turn ends, or you prompt again.
+    /// * `PermissionDenied` fires only for auto mode's denials; a manual
+    ///   denial fires no hook of its own.
     /// * `StopFailure` ends the turn on an API error, instead of `Stop`.
     public var action: Action {
         switch event {
@@ -111,6 +130,7 @@ public struct ClaudeHookInput: Equatable {
         case "PermissionRequest": return .awaitPermission
         case "Notification":
             switch notificationType {
+            case "permission_prompt": return .promptOpen
             case "idle_prompt": return .settle
             case let type? where Self.inputNotifications.contains(type): return .awaitInput
             case let type? where Self.answeredNotifications.contains(type): return .answered
@@ -177,11 +197,11 @@ public struct AgentSessionStore {
             }
             // Only these may create a session; the rest of a session's events
             // come after SessionStart or UserPromptSubmit anyway.
-            guard var record = old ?? ([.begin, .prompt, .work, .batchDone, .awaitPermission, .awaitInput, .answered, .finish].contains(action)
+            guard var record = old ?? ([.begin, .prompt, .work, .batchDone, .awaitPermission, .promptOpen, .awaitInput, .answered, .finish].contains(action)
                 ? Record(state: .idle, waits: nil, ts: 0) : nil) else { return }
             var waits = Set(record.waits ?? [])
             let agent = input.agentKey
-            // "permission:<agent>:<tool_use_id>" ("?" when the hook had none),
+            // "permission:<agent>:<call fingerprint>" ("?" when unpaired),
             // "input:<agent>".
             let permissionPrefix = "permission:\(agent):"
             func answer(call id: String) {
@@ -195,13 +215,16 @@ public struct AgentSessionStore {
                 waits.removeAll()
             case .work:
                 record.state = .working
-                if let id = input.toolUseID { answer(call: id) }
+                if let call = input.toolCall { answer(call: call) }
             case .batchDone:
                 record.state = .working
-                input.batchToolUseIDs.forEach(answer(call:))
+                input.batchToolCalls.forEach(answer(call:))
                 waits = waits.filter { !$0.hasPrefix(permissionPrefix) && $0 != "input:\(agent)" }
             case .awaitPermission:
-                waits.insert(permissionPrefix + (input.toolUseID ?? "?"))
+                waits.insert(permissionPrefix + (input.toolCall ?? "?"))
+            case .promptOpen:
+                if waits.contains(where: { $0.hasPrefix(permissionPrefix) }) { return }
+                waits.insert(permissionPrefix + "?")
             case .awaitInput:
                 waits.insert("input:\(agent)")
             case .answered:

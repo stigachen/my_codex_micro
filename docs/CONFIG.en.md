@@ -358,11 +358,12 @@ The "Now: …" line in the menu shows what the ring currently stands for and how
 
 * Pressing Esc to interrupt a turn fires no hook, so the ring stays blue until the "waiting for input" notification about a minute
   later, or your next prompt; after 15 minutes it is treated as idle regardless.
-* Each permission request is tracked against its own tool call, and only that call running or being denied answers it.
+* Each permission request is tracked against its own tool call (tool name and arguments), and only that call running answers it.
   Claude Code runs tools in parallel (within one thread and across subagents), so another tool finishing does not clear
   a permission dialog that is still open.
-* After denying a permission request, if Claude Code sends no `PermissionDenied`, the ring stays amber until that batch of
-  tools resolves, the turn ends, or your next prompt.
+* A wait that cannot be matched to a call (arguments edited in the dialog, a sandboxed command's network request) stays until
+  that batch of tools resolves, the turn ends, or your next prompt.
+* Denying a permission dialog by hand fires no hook, so the ring likewise stays amber until one of those three.
 * A turn that ends on an API error (rate limit, authentication, …) shows as finished.
 * A session that ends without sending `SessionEnd` (say, a killed process) is ignored after 3 hours.
 * The ChatGPT desktop app drives the same status lights; running both at once, they overwrite each other.
