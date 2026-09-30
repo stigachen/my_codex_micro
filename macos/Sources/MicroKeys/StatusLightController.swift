@@ -102,10 +102,11 @@ final class StatusLightController {
         sessionCount = states.count
         let next = AgentState.aggregate(states)
         if next != shown {
-            Log.info(S.logStatusLight(S.agentState(next).text).text)
-            // Only remember it as shown once it went out; otherwise the next
-            // connect or heartbeat tries again.
-            shown = pad.showStatus(next) ? next : nil
+            // Only remember (and log) it as shown once it went out; with no pad
+            // connected, the next connect or heartbeat tries again.
+            let sent = pad.showStatus(next)
+            if sent { Log.info(S.logStatusLight(S.agentState(next).text).text) }
+            shown = sent ? next : nil
         } else if resend, let shown {
             pad.showStatus(shown)
         }
