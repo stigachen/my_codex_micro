@@ -5,6 +5,9 @@
 
 典型用法：语音键 → 按住 `右Ctrl + 右Shift`，给 Wispr Flow / Superwhisper 这类按住说话的听写软件用。
 
+另有一个可选的 **Claude Code 状态灯**（macOS）：键盘外圈灯带随 Claude Code 变色，等你确认时琥珀色呼吸、
+工作中蓝色、做完绿色，在任何层上都有效。见 [docs/CONFIG.md 第 11 节](docs/CONFIG.md#11-claude-code-状态灯)。
+
 ```json
 { "bindings": { "MIC": { "mode": "hold", "keys": "rctrl+rshift" } } }
 ```
@@ -15,7 +18,9 @@
 
 Codex Micro 的按键不发标准键盘扫描码，所有输入都通过一条厂商 HID 通道（Report ID 6）以 JSON-RPC 的形式发出，
 协议由 [freemicro](https://github.com/eliBenven/freemicro) 项目逆向并验证。MicroKeys 用 IOKit 以**共享方式**打开设备，
-只读事件、从不写灯光，因此和 ChatGPT 桌面端互不干扰；收到按键后用 CGEvent 合成系统按键。
+只读事件，因此和 ChatGPT 桌面端互不干扰；收到按键后用 CGEvent 合成系统按键。
+唯一的例外是可选的 Claude Code 状态灯：开启后会发送状态灯颜色（`v.oai.thstatus`），这是运行时状态，不写设备存储，
+代码里也没有发送其他消息的途径。
 
 ```
 Codex Micro ──HID(Report 6, JSON)──▶ PadMonitor ──▶ FrameDecoder ──▶ Mapper ──▶ CGKeySynthesizer ──▶ 系统
@@ -100,7 +105,7 @@ make windows-publish    # windows/dist/MicroKeys-<版本>-win-x64.zip 和 win-ar
 
 点图标可以看到：键盘连接状态与传输方式（USB / 蓝牙）、两个权限的状态（点击直达设置页）、
 macOS「安全输入」是否被某个应用占用（占用时快捷键工具收不到按键，点击查看占用者和处理办法）、当前所有绑定、
-**最近按键**（用来查某个物理键的 id）、最近触发的快捷键、打开配置 / 文档 / 日志、语言、开机自启、关于、退出。
+**最近按键**（用来查某个物理键的 id）、最近触发的快捷键、Claude Code 状态灯开关（macOS）、打开配置 / 文档 / 日志、语言、开机自启、关于、退出。
 
 界面支持简体中文和 English。默认跟随系统语言，在「语言 / Language」子菜单里选定后会记住，下次启动仍然生效。
 系统自带的界面（如「关于」面板里的「版本」一词）也跟随这个选择，但要下次启动才切换。
@@ -114,6 +119,8 @@ MicroKeys --test-shortcut "rctrl+rshift" 800  # 3 秒后合成一次快捷键，
 MicroKeys --dump-pad 20                       # 打印 20 秒内键盘发出的原始按键 id，查哪个开关是 ACT10 / ACT11
 MicroKeys --dump-events 20                    # 打印 20 秒内系统投递的键盘事件，诊断用
 MicroKeys --detect                            # 列出接在本机的 Work Louder 键盘及其通道信息
+MicroKeys --claude-hooks-config               # 打印 Claude Code 状态灯要合并进 ~/.claude/settings.json 的 hooks
+MicroKeys --claude-hook                       # 供 Claude Code 的 hook 调用，从标准输入读事件
 MicroKeys --uninstall                         # 清除配置、日志、偏好、开机自启，见「卸载」
 MicroKeys --version
 ```
@@ -176,12 +183,13 @@ MicroKeys.exe --uninstall
 | 配置 | `~/.config/microkeys/` | `%APPDATA%\MicroKeys\` |
 | 日志 | `~/Library/Logs/MicroKeys.log` | `%LOCALAPPDATA%\MicroKeys\` |
 | 语言等偏好 | `~/Library/Preferences/com.chenguang.MicroKeys.plist` | 注册表 `HKCU\Software\MicroKeys` |
+| Claude Code 会话状态 | `~/Library/Application Support/MicroKeys/` | 无 |
 | 开机自启 | 登录项 | 注册表 `HKCU\…\CurrentVersion\Run` 的 `MicroKeys` |
 | 运行时缓存 | 无 | `%TEMP%\.net\MicroKeys\` |
 
 命令跑完会打印剩下需要你手动做的：删除程序本身（macOS 的 `.app`，Windows 的 `.exe`）；macOS 上还要去
 「系统设置 → 隐私与安全性」的「输入监控」和「辅助功能」里移除 MicroKeys 那一行，这是系统的权限记录，
-任何应用都无法替用户撤销，留着也无害。
+任何应用都无法替用户撤销，留着也无害。用过 Claude Code 状态灯的话，还要从 `~/.claude/settings.json` 删掉那几条 hooks（命令会提醒）。
 
 不做的事：两个平台都不写系统目录，不装服务、守护进程、驱动或计划任务。
 

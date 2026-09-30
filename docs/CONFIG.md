@@ -201,7 +201,7 @@ Windows 上合成按键不需要任何权限。唯一限制：MicroKeys 以普�
 
 ## 6. 和 ChatGPT / Codex 桌面应用共存
 
-MicroKeys 以共享方式打开设备，**不会**抢走 ChatGPT 的连接，也从不碰灯光。
+MicroKeys 以共享方式打开设备，**不会**抢走 ChatGPT 的连接，也不碰灯光（除非你开启了第 11 节的 Claude Code 状态灯）。
 两个程序同时收到每一次按键，各干各的。
 
 但这意味着：你在 MicroKeys 里绑了某个键，ChatGPT 仍然会执行它原本的动作。
@@ -300,3 +300,64 @@ MicroKeys.exe --uninstall                                            # Windows
 
 先列出将删除的内容再确认（`--yes` 跳过确认）：配置、日志、语言偏好、开机自启，以及正在运行的实例。
 之后手动删除程序本身；macOS 上还需在「系统设置 → 隐私与安全性」里移除两条权限记录。详见 README「卸载」一节。
+
+## 11. Claude Code 状态灯
+
+仅 macOS。让键盘外圈的灯带跟着 Claude Code 的状态变，不用盯着终端也知道它在干什么：
+
+| Claude Code | 灯带 |
+|---|---|
+| 等你确认（权限对话框、MCP 提问） | 琥珀色，呼吸 |
+| 工作中 | 蓝色 |
+| 这一轮做完了 | 绿色 |
+| 没有会话，或都空闲 | 恢复你这一层原来的灯光 |
+
+同时开着几个会话时显示最紧急的那个。在**任何层**上都有效，包括你在官方 app 里自建的层；
+在带 Agent 键的层（如 Codex 层）上，六个 Agent 键也会一起亮成同一个颜色。
+
+### 开启
+
+1. 菜单栏图标 → 勾上「Claude Code 状态灯（外圈灯带）」。
+2. 点它下面的「复制 Claude Code hooks 配置」，把剪贴板里的内容合并进 `~/.claude/settings.json`。
+   文件里已经有 `"hooks"` 时逐个事件合并，不要整段覆盖。也可以在终端打印同一段：
+   ```sh
+   /Applications/MicroKeys.app/Contents/MacOS/MicroKeys --claude-hooks-config
+   ```
+3. 保存即生效，正在运行的 Claude Code 会话不用重启。
+
+复制出来的配置长这样（每个事件一行，命令都一样）：
+
+```json
+{
+  "hooks": {
+    "SessionStart":       [{ "hooks": [{ "type": "command", "command": "/Applications/MicroKeys.app/Contents/MacOS/MicroKeys --claude-hook", "timeout": 5 }] }],
+    "UserPromptSubmit":   [{ "hooks": [{ "type": "command", "command": "/Applications/MicroKeys.app/Contents/MacOS/MicroKeys --claude-hook", "timeout": 5 }] }],
+    "PostToolUse":        [ …同上… ],
+    "PostToolUseFailure": [ …同上… ],
+    "PermissionRequest":  [ …同上… ],
+    "Notification":       [ …同上… ],
+    "Stop":               [ …同上… ],
+    "SessionEnd":         [ …同上… ]
+  }
+}
+```
+
+菜单里「当前：…」一行显示灯带此刻代表的状态和会话数，可以用来确认 hooks 生效了。
+
+### 它做了什么，没做什么
+
+* hook 只把这个会话的状态写进 `~/Library/Application Support/MicroKeys/claude-sessions/` 下的一个小文件，约 10 ms，
+  永远返回成功，不会拖慢或打断 Claude Code；它不接触键盘。
+* 菜单栏应用读这些文件，向键盘只发一种消息：`v.oai.thstatus`（状态灯颜色）。这是运行时状态，
+  **不写设备的存储**：不改层、键位或你设置的灯光，拔插一次或闲置几个小时设备就会忘掉。
+  代码里没有发送其他消息的途径。
+* 开关没勾时一个字节都不发；勾上但没有会话在忙时也不发。灯亮着时每 30 秒重发一次，因为设备闲置久了会自己忘掉。
+
+### 已知限制
+
+* 按 Esc 打断一轮时 Claude Code 不触发任何 hook，蓝灯会停留到大约一分钟后的「等待输入」通知，或你下一次提问；
+  最多 15 分钟后当作空闲处理。
+* 在权限对话框里选择拒绝后，琥珀色可能保持到你下一次提问。
+* 会话没来得及发出 `SessionEnd` 就结束（比如进程被杀），3 小时后自动忽略。
+* ChatGPT 桌面端也用这组状态灯，两者同时用会互相覆盖。
+* 删除应用前先从 `settings.json` 里删掉这些 hooks，否则 Claude Code 会提示 hook 出错；`--uninstall` 会提醒这一点。

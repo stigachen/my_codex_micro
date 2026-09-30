@@ -57,6 +57,8 @@ final class PadMonitor {
     private var manager: IOHIDManager?
     private var entries: [ObjectIdentifier: Entry] = [:]
     private var active: ObjectIdentifier?
+    private let sendQueue = DispatchQueue(label: "microkeys.pad.send")
+    private var rpcID = 0
 
     /// Start (or restart) watching. Safe to call again after a permission grant.
     func start() {
@@ -136,6 +138,35 @@ final class PadMonitor {
         } else {
             status = .disconnected
         }
+    }
+
+    /// Show a Claude Code state on the pad's status lights (nil = hand them back).
+    ///
+    /// This is the only thing MicroKeys ever writes to the pad, and it takes a
+    /// state rather than bytes on purpose: there is no path for any other
+    /// message, so nothing can reach the pad's flash. See `StatusLight`.
+    ///
+    /// Sent off the main thread: the pad drops bytes if frames arrive back to
+    /// back, so each is followed by a 4 ms pause, and a dozen of those should
+    /// not stall key handling. `wait` blocks until sent (for app quit).
+    /// Returns false when no pad is connected.
+    @discardableResult
+    func showStatus(_ state: AgentState?, wait: Bool = false) -> Bool {
+        guard let active, let device = entries[active]?.device else { return false }
+        rpcID = rpcID % 999 + 1
+        let frames = StatusLight.frames(StatusLight.request(state, id: rpcID))
+        let work = {
+            for frame in frames {
+                let result = IOHIDDeviceSetReport(device, kIOHIDReportTypeOutput, CFIndex(FrameDecoder.reportID), frame, frame.count)
+                if result != kIOReturnSuccess {
+                    Log.warn(S.logSendFailed(String(format: "0x%08X", result)).text)
+                    return
+                }
+                usleep(4000)
+            }
+        }
+        if wait { sendQueue.sync(execute: work) } else { sendQueue.async(execute: work) }
+        return true
     }
 
     private func report(from device: IOHIDDevice, reportID: UInt32, bytes: [UInt8]) {

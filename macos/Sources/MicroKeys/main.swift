@@ -74,6 +74,21 @@ func runCLI(_ args: [String]) -> Int32? {
         let seconds = args.count > 1 ? Int(args[1]) ?? 20 : 20
         return EventDumper.run(seconds: seconds)
 
+    case "--claude-hook":
+        // Called by Claude Code's hooks with the event as JSON on stdin. Only
+        // records the session's state for the running app to show; it never
+        // talks to the pad, and it always exits 0 so it cannot break a session.
+        if isatty(STDIN_FILENO) == 0,
+           let input = ClaudeHookInput.parse(FileHandle.standardInput.readDataToEndOfFile()) {
+            AgentSessionStore(directory: AgentSessionStore.defaultDirectory).apply(input)
+        }
+        return 0
+
+    case "--claude-hooks-config":
+        // The block to merge into ~/.claude/settings.json, with this binary's path.
+        print(ClaudeHooks.settingsSnippet(executable: Bundle.main.executablePath ?? CommandLine.arguments[0]), terminator: "")
+        return 0
+
     case "--uninstall":
         return Uninstaller.run(assumeYes: args.contains("--yes") || args.contains("-y"))
 
@@ -87,6 +102,8 @@ func runCLI(_ args: [String]) -> Int32? {
           --dump-pad [秒数]               打印这段时间内键盘发出的原始按键 id（查某个开关是 ACT10 还是 ACT11）
           --dump-events [秒数]            打印这段时间内系统收到的所有键盘事件（诊断用）
           --detect                        列出接在这台 Mac 上的 Work Louder / 乐鑫 HID 设备
+          --claude-hooks-config           打印 Claude Code 状态灯要用的 hooks 配置（合并进 ~/.claude/settings.json）
+          --claude-hook                   供 Claude Code 的 hook 调用：从标准输入读事件，记录会话状态
           --uninstall [--yes]             删除配置、日志、偏好和开机自启，并列出需手动处理的项
           --version
         环境变量 MICROKEYS_CONFIG 可指定配置文件路径（默认 ~/.config/microkeys/config.json）。
@@ -99,6 +116,8 @@ func runCLI(_ args: [String]) -> Int32? {
           --dump-pad [seconds]             print the raw key ids the pad sends (which switch is ACT10 vs ACT11)
           --dump-events [seconds]          print every keyboard event the system delivers (diagnostic)
           --detect                         list Work Louder / Espressif HID devices attached to this Mac
+          --claude-hooks-config            print the hooks block for the Claude Code status light (merge into ~/.claude/settings.json)
+          --claude-hook                    called by Claude Code hooks: read the event from stdin, record the session state
           --uninstall [--yes]              remove config, log, preferences and the login item; list what is left for you
           --version
         MICROKEYS_CONFIG overrides the config path (default ~/.config/microkeys/config.json).

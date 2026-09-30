@@ -13,6 +13,7 @@ enum Uninstaller {
         let items: [(path: URL, what: String)] = [
             (ConfigStore.defaultURL.deletingLastPathComponent(), L10n.pick("配置目录", "config directory")),
             (home.appendingPathComponent("Library/Logs/MicroKeys.log"), L10n.pick("日志", "log")),
+            (AgentSessionStore.defaultDirectory.deletingLastPathComponent(), L10n.pick("Claude Code 会话状态", "Claude Code session state")),
             (home.appendingPathComponent("Library/Preferences/\(bundleID).plist"), L10n.pick("语言等偏好设置", "preferences (language)")),
         ]
         let loginItem = SMAppService.mainApp.status == .enabled
@@ -48,11 +49,16 @@ enum Uninstaller {
         }
 
         print()
-        print(L10n.pick("剩下两件事只能手动做：", "Two things only you can do:"))
+        print(L10n.pick("剩下几件事只能手动做：", "What only you can do:"))
         print(L10n.pick("  1. 删除应用本身：  rm -rf \"\(Bundle.main.bundleURL.path)\"",
                         "  1. Delete the app itself:  rm -rf \"\(Bundle.main.bundleURL.path)\""))
         print(L10n.pick("  2. 系统设置 → 隐私与安全性 → 「输入监控」和「辅助功能」里各移除 MicroKeys 一行（留着也无害）。",
                         "  2. System Settings → Privacy & Security → remove MicroKeys from Input Monitoring and Accessibility (harmless if left)."))
+        let claudeSettings = home.appendingPathComponent(".claude/settings.json")
+        if let text = try? String(contentsOf: claudeSettings, encoding: .utf8), text.contains("--claude-hook") {
+            print(L10n.pick("  3. 从 \(claudeSettings.path) 里删掉调用 MicroKeys --claude-hook 的 hooks，否则删了应用后 Claude Code 会提示 hook 出错。",
+                            "  3. Remove the MicroKeys --claude-hook hooks from \(claudeSettings.path), or Claude Code will report hook errors once the app is gone."))
+        }
         return failed ? 1 : 0
     }
 }
