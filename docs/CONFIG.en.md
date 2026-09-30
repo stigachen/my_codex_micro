@@ -329,6 +329,7 @@ The copied block looks like this (one line per event, all running the same comma
     "UserPromptSubmit":   [{ "hooks": [{ "type": "command", "command": "/Applications/MicroKeys.app/Contents/MacOS/MicroKeys --claude-hook", "timeout": 5 }] }],
     "PostToolUse":        [ …same… ],
     "PostToolUseFailure": [ …same… ],
+    "PostToolBatch":      [ …same… ],
     "PermissionRequest":  [ …same… ],
     "PermissionDenied":   [ …same… ],
     "Notification":       [ …same… ],
@@ -357,9 +358,11 @@ The "Now: …" line in the menu shows what the ring currently stands for and how
 
 * Pressing Esc to interrupt a turn fires no hook, so the ring stays blue until the "waiting for input" notification about a minute
   later, or your next prompt; after 15 minutes it is treated as idle regardless.
-* Waits are tracked per subagent (background ones included): a subagent finishing a tool does not clear a permission dialog
-  the main agent still has open, and vice versa.
-* After denying a permission request, if Claude Code sends no `PermissionDenied`, the ring stays amber until the turn ends or your next prompt.
+* Each permission request is tracked against its own tool call, and only that call running or being denied answers it.
+  Claude Code runs tools in parallel (within one thread and across subagents), so another tool finishing does not clear
+  a permission dialog that is still open.
+* After denying a permission request, if Claude Code sends no `PermissionDenied`, the ring stays amber until that batch of
+  tools resolves, the turn ends, or your next prompt.
 * A turn that ends on an API error (rate limit, authentication, …) shows as finished.
 * A session that ends without sending `SessionEnd` (say, a killed process) is ignored after 3 hours.
 * The ChatGPT desktop app drives the same status lights; running both at once, they overwrite each other.

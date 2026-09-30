@@ -32,12 +32,20 @@ public struct ClaudeHookInput: Equatable {
     /// Set when the hook fired inside a subagent. Subagents share their
     /// parent's `session_id`, so this is what tells their events apart.
     public var agentID: String?
+    /// The tool call a tool event is about. Permission and tool hooks all
+    /// carry it, which is what pairs a permission request with its answer.
+    public var toolUseID: String?
+    /// `PostToolBatch`: every call of the parallel batch that just resolved.
+    public var batchToolUseIDs: [String]
 
-    public init(event: String, sessionID: String, notificationType: String? = nil, agentID: String? = nil) {
+    public init(event: String, sessionID: String, notificationType: String? = nil, agentID: String? = nil,
+                toolUseID: String? = nil, batchToolUseIDs: [String] = []) {
         self.event = event
         self.sessionID = sessionID
         self.notificationType = notificationType
         self.agentID = agentID
+        self.toolUseID = toolUseID
+        self.batchToolUseIDs = batchToolUseIDs
     }
 
     /// nil when the payload is not a hook payload at all.
@@ -45,11 +53,14 @@ public struct ClaudeHookInput: Equatable {
         guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let event = object["hook_event_name"] as? String, !event.isEmpty
         else { return nil }
-        let session = object["session_id"] as? String ?? ""
-        let agent = object["agent_id"] as? String
-        return ClaudeHookInput(event: event, sessionID: session.isEmpty ? "unknown" : session,
-                               notificationType: object["notification_type"] as? String,
-                               agentID: agent?.isEmpty == false ? agent : nil)
+        func nonEmpty(_ key: String) -> String? {
+            guard let value = object[key] as? String, !value.isEmpty else { return nil }
+            return value
+        }
+        let batch = (object["tool_calls"] as? [[String: Any]])?.compactMap { $0["tool_use_id"] as? String } ?? []
+        return ClaudeHookInput(event: event, sessionID: nonEmpty("session_id") ?? "unknown",
+                               notificationType: nonEmpty("notification_type"), agentID: nonEmpty("agent_id"),
+                               toolUseID: nonEmpty("tool_use_id"), batchToolUseIDs: batch)
     }
 
     public enum Action: Equatable {
@@ -57,12 +68,18 @@ public struct ClaudeHookInput: Equatable {
         case begin
         /// You sent a prompt: working, and every pending wait is answered.
         case prompt
-        /// This agent is running tools again: its own waits are answered.
+        /// A tool call ran (or was denied): working, and a permission wait for
+        /// that same call is answered. Nothing else is.
         case work
-        /// This agent is blocked on a permission decision.
+        /// A parallel batch resolved: working, and every wait of this agent's
+        /// batch is over, including ones no tool event could be matched to.
+        case batchDone
+        /// A tool call is blocked on a permission decision.
         case awaitPermission
-        /// This agent is blocked on some other input from you.
+        /// This agent is blocked on some other input from you (an MCP question).
         case awaitInput
+        /// You answered this agent's question.
+        case answered
         /// The main turn ended: done, and the main agent's waits are over.
         case finish
         /// `idle_prompt`: a turn left "working" (Esc fires no hook) becomes idle.
@@ -78,22 +95,25 @@ public struct ClaudeHookInput: Equatable {
     ///
     /// * `SessionStart` also fires on resume and after a compaction, which can
     ///   happen mid-turn, so it never overwrites a session already recorded.
-    /// * Waits are tracked per agent: a background subagent finishing a tool
-    ///   must not clear a permission dialog the main agent still has open.
-    /// * `PermissionDenied` answers a permission wait just as `PostToolUse` does.
+    /// * A permission wait belongs to one tool call (`tool_use_id`). Tools run
+    ///   in parallel, within one agent and across subagents, so another call
+    ///   finishing says nothing about a dialog still open.
+    /// * The `permission_prompt` notification is ignored: it carries no tool
+    ///   call to pair with an answer, and `PermissionRequest` already reported
+    ///   the same dialog.
     /// * `StopFailure` ends the turn on an API error, instead of `Stop`.
     public var action: Action {
         switch event {
         case "SessionStart": return .begin
         case "UserPromptSubmit": return .prompt
         case "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionDenied": return .work
+        case "PostToolBatch": return .batchDone
         case "PermissionRequest": return .awaitPermission
         case "Notification":
             switch notificationType {
-            case nil, "permission_prompt": return .awaitPermission
             case "idle_prompt": return .settle
             case let type? where Self.inputNotifications.contains(type): return .awaitInput
-            case let type? where Self.answeredNotifications.contains(type): return .work
+            case let type? where Self.answeredNotifications.contains(type): return .answered
             default: return .ignore
             }
         case "Stop", "StopFailure": return .finish
@@ -108,7 +128,7 @@ public struct ClaudeHookInput: Equatable {
 /// Per-session state files shared by the hook (writer) and the app (reader).
 ///
 /// One small file per session. Hooks of the same session can run in parallel
-/// (a subagent's tool finishing while the main agent asks for permission), and
+/// (one tool finishing while another asks for permission), and
 /// each one reads, changes and rewrites the file, so writers take a lock.
 /// Every write is atomic (temp file + rename), so the app reads without one.
 public struct AgentSessionStore {
@@ -133,8 +153,8 @@ public struct AgentSessionStore {
             .appendingPathComponent("Library/Application Support/MicroKeys/claude-sessions")
     }
 
-    /// `state` is idle, working or done; `waits` names who is blocked on you
-    /// ("permission:<agent>", "input:<agent>"). Any wait shows as waiting.
+    /// `state` is idle, working or done; `waits` names what is blocked on you
+    /// (a tool call's permission, an agent's question). Any wait shows as waiting.
     struct Record: Codable, Equatable {
         var state: AgentState
         var waits: [String]?
@@ -157,10 +177,16 @@ public struct AgentSessionStore {
             }
             // Only these may create a session; the rest of a session's events
             // come after SessionStart or UserPromptSubmit anyway.
-            guard var record = old ?? ([.begin, .prompt, .work, .awaitPermission, .awaitInput, .finish].contains(action)
+            guard var record = old ?? ([.begin, .prompt, .work, .batchDone, .awaitPermission, .awaitInput, .answered, .finish].contains(action)
                 ? Record(state: .idle, waits: nil, ts: 0) : nil) else { return }
             var waits = Set(record.waits ?? [])
             let agent = input.agentKey
+            // "permission:<agent>:<tool_use_id>" ("?" when the hook had none),
+            // "input:<agent>".
+            let permissionPrefix = "permission:\(agent):"
+            func answer(call id: String) {
+                waits = waits.filter { !($0.hasPrefix("permission:") && $0.hasSuffix(":" + id)) }
+            }
             switch action {
             case .begin:
                 if old != nil { return }
@@ -169,16 +195,21 @@ public struct AgentSessionStore {
                 waits.removeAll()
             case .work:
                 record.state = .working
-                waits.remove("permission:\(agent)")
-                waits.remove("input:\(agent)")
+                if let id = input.toolUseID { answer(call: id) }
+            case .batchDone:
+                record.state = .working
+                input.batchToolUseIDs.forEach(answer(call:))
+                waits = waits.filter { !$0.hasPrefix(permissionPrefix) && $0 != "input:\(agent)" }
             case .awaitPermission:
-                waits.insert("permission:\(agent)")
+                waits.insert(permissionPrefix + (input.toolUseID ?? "?"))
             case .awaitInput:
                 waits.insert("input:\(agent)")
+            case .answered:
+                record.state = .working
+                waits.remove("input:\(agent)")
             case .finish:
                 record.state = .done
-                waits.remove("permission:main")
-                waits.remove("input:main")
+                waits = waits.filter { !$0.hasPrefix("permission:main:") && $0 != "input:main" }
             case .settle:
                 guard record.state == .working else { return }
                 record.state = .idle
@@ -364,7 +395,7 @@ public enum StatusLight {
 public enum ClaudeHooks {
     /// No matchers: every Notification type goes to the hook, which decides.
     public static let events = [
-        "SessionStart", "UserPromptSubmit", "PostToolUse", "PostToolUseFailure",
+        "SessionStart", "UserPromptSubmit", "PostToolUse", "PostToolUseFailure", "PostToolBatch",
         "PermissionRequest", "PermissionDenied", "Notification", "Stop", "StopFailure", "SessionEnd",
     ]
 

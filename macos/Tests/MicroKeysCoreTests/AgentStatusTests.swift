@@ -2,8 +2,10 @@ import Foundation
 import Testing
 @testable import MicroKeysCore
 
-private func hook(_ event: String, _ session: String = "s1", type: String? = nil, agent: String? = nil) -> ClaudeHookInput {
-    ClaudeHookInput(event: event, sessionID: session, notificationType: type, agentID: agent)
+private func hook(_ event: String, _ session: String = "s1", type: String? = nil, agent: String? = nil,
+                  tool: String? = nil, batch: [String] = []) -> ClaudeHookInput {
+    ClaudeHookInput(event: event, sessionID: session, notificationType: type, agentID: agent,
+                    toolUseID: tool, batchToolUseIDs: batch)
 }
 
 private func tempStore() -> AgentSessionStore {
@@ -15,8 +17,10 @@ private func tempStore() -> AgentSessionStore {
     @Test func parsesHookPayload() {
         let json = #"{"session_id":"abc-123","cwd":"/tmp","hook_event_name":"Notification","notification_type":"permission_prompt"}"#
         #expect(ClaudeHookInput.parse(Data(json.utf8)) == hook("Notification", "abc-123", type: "permission_prompt"))
-        let sub = #"{"session_id":"abc","hook_event_name":"PostToolUse","agent_id":"agent-7"}"#
-        #expect(ClaudeHookInput.parse(Data(sub.utf8))?.agentID == "agent-7")
+        let sub = #"{"session_id":"abc","hook_event_name":"PostToolUse","agent_id":"agent-7","tool_use_id":"toolu_1"}"#
+        #expect(ClaudeHookInput.parse(Data(sub.utf8)) == hook("PostToolUse", "abc", agent: "agent-7", tool: "toolu_1"))
+        let batch = #"{"session_id":"abc","hook_event_name":"PostToolBatch","tool_calls":[{"tool_use_id":"t1"},{"tool_use_id":"t2"}]}"#
+        #expect(ClaudeHookInput.parse(Data(batch.utf8))?.batchToolUseIDs == ["t1", "t2"])
         #expect(ClaudeHookInput.parse(Data(#"{"hook_event_name":"Stop"}"#.utf8))?.sessionID == "unknown")
         #expect(ClaudeHookInput.parse(Data("not json".utf8)) == nil)
         #expect(ClaudeHookInput.parse(Data(#"{"session_id":"x"}"#.utf8)) == nil)
@@ -29,11 +33,12 @@ private func tempStore() -> AgentSessionStore {
         #expect(hook("PostToolUse").action == .work)
         #expect(hook("PostToolUseFailure").action == .work)
         #expect(hook("PermissionDenied").action == .work)
+        #expect(hook("PostToolBatch").action == .batchDone)
         #expect(hook("PermissionRequest").action == .awaitPermission)
-        #expect(hook("Notification", type: "permission_prompt").action == .awaitPermission)
-        #expect(hook("Notification").action == .awaitPermission)
+        #expect(hook("Notification", type: "permission_prompt").action == .ignore)
+        #expect(hook("Notification").action == .ignore)
         #expect(hook("Notification", type: "elicitation_dialog").action == .awaitInput)
-        #expect(hook("Notification", type: "elicitation_response").action == .work)
+        #expect(hook("Notification", type: "elicitation_response").action == .answered)
         #expect(hook("Notification", type: "idle_prompt").action == .settle)
         #expect(hook("Notification", type: "auth_success").action == .ignore)
         #expect(hook("Stop").action == .finish)
@@ -58,9 +63,9 @@ private func tempStore() -> AgentSessionStore {
         store.apply(hook("SessionStart"))
         #expect(store.states() == [.idle])
         store.apply(hook("UserPromptSubmit"))
-        store.apply(hook("PermissionRequest"))
+        store.apply(hook("PermissionRequest", tool: "t1"))
         #expect(store.states() == [.waiting])
-        store.apply(hook("PostToolUse"))
+        store.apply(hook("PostToolUse", tool: "t1"))
         #expect(store.states() == [.working])
         store.apply(hook("Stop"))
         #expect(store.states() == [.done])
@@ -70,33 +75,62 @@ private func tempStore() -> AgentSessionStore {
         #expect(store.states().isEmpty)
     }
 
-    @Test func subagentToolsDoNotClearTheMainAgentsWait() {
+    /// Review #14: tools run in parallel, so only the answer to the same
+    /// call clears a permission wait - not another call finishing, whether
+    /// it belongs to a subagent or to the same agent.
+    @Test func onlyTheSameToolCallAnswersAPermission() {
         let store = tempStore()
         defer { try? FileManager.default.removeItem(at: store.directory) }
         store.apply(hook("UserPromptSubmit"))
-        store.apply(hook("PermissionRequest"))
-        store.apply(hook("PostToolUse", agent: "bg-1"))          // a background subagent keeps going
-        store.apply(hook("PostToolUseFailure", agent: "bg-1"))
+        store.apply(hook("PermissionRequest", tool: "bash-1"))
+        store.apply(hook("PostToolUse", tool: "read-2"))                     // same agent, same batch
+        store.apply(hook("PostToolUse", agent: "bg-1", tool: "read-3"))      // a background subagent
+        store.apply(hook("PostToolUseFailure", agent: "bg-1", tool: "read-4"))
         #expect(store.states() == [.waiting])
-        store.apply(hook("PostToolUse"))                          // the main agent's tool ran: answered
+        store.apply(hook("PostToolUse", tool: "bash-1"))
         #expect(store.states() == [.working])
 
-        // A subagent's own permission request is cleared by its own tool, not the main one's.
-        store.apply(hook("PermissionRequest", agent: "bg-1"))
-        store.apply(hook("PostToolUse"))
+        // Two dialogs at once: answering one leaves the other.
+        store.apply(hook("PermissionRequest", tool: "a"))
+        store.apply(hook("PermissionRequest", agent: "bg-1", tool: "b"))
+        store.apply(hook("PermissionDenied", tool: "a"))
         #expect(store.states() == [.waiting])
-        store.apply(hook("PermissionDenied", agent: "bg-1"))
+        store.apply(hook("PostToolUseFailure", agent: "bg-1", tool: "b"))
+        #expect(store.states() == [.working])
+    }
+
+    @Test func batchEndAnswersItsCallsAndUnpairedWaits() {
+        let store = tempStore()
+        defer { try? FileManager.default.removeItem(at: store.directory) }
+        store.apply(hook("UserPromptSubmit"))
+        store.apply(hook("PermissionRequest", tool: "x"))                    // answered with edits, say
+        store.apply(hook("PermissionRequest"))                               // no tool_use_id at all
+        store.apply(hook("PermissionRequest", agent: "bg-1", tool: "y"))
+        store.apply(hook("PostToolBatch", batch: ["x", "z"]))
+        #expect(store.states() == [.waiting])                                // bg-1's call is not in this batch
+        store.apply(hook("PostToolBatch", agent: "bg-1", batch: ["y"]))
+        #expect(store.states() == [.working])
+    }
+
+    @Test func questionsWaitUntilAnswered() {
+        let store = tempStore()
+        defer { try? FileManager.default.removeItem(at: store.directory) }
+        store.apply(hook("UserPromptSubmit"))
+        store.apply(hook("Notification", type: "elicitation_dialog"))
+        store.apply(hook("PostToolUse", tool: "other"))                      // unrelated call
+        #expect(store.states() == [.waiting])
+        store.apply(hook("Notification", type: "elicitation_response"))
         #expect(store.states() == [.working])
     }
 
     @Test func promptAndStopClearWaits() {
         let store = tempStore()
         defer { try? FileManager.default.removeItem(at: store.directory) }
-        store.apply(hook("PermissionRequest"))
-        store.apply(hook("Stop"))                                  // e.g. denied with Esc, then the turn ended
+        store.apply(hook("PermissionRequest", tool: "t"))
+        store.apply(hook("Stop"))                                  // e.g. rejected with Esc, then the turn ended
         #expect(store.states() == [.done])
 
-        store.apply(hook("PermissionRequest", agent: "bg-1"))
+        store.apply(hook("PermissionRequest", agent: "bg-1", tool: "u"))
         store.apply(hook("Notification", type: "elicitation_dialog"))
         store.apply(hook("Stop"))                                  // the subagent is still blocked on you
         #expect(store.states() == [.waiting])
@@ -116,15 +150,15 @@ private func tempStore() -> AgentSessionStore {
         let store = tempStore()
         defer { try? FileManager.default.removeItem(at: store.directory) }
         store.apply(hook("UserPromptSubmit"))
-        // Many agents asking at once; without the lock some would be lost.
+        // Many calls asking at once; without the lock some would be lost.
         DispatchQueue.concurrentPerform(iterations: 40) { i in
-            store.apply(hook("PermissionRequest", agent: "a\(i)"))
+            store.apply(hook("PermissionRequest", agent: i % 2 == 0 ? nil : "a\(i)", tool: "t\(i)"))
         }
         DispatchQueue.concurrentPerform(iterations: 39) { i in
-            store.apply(hook("PostToolUse", agent: "a\(i)"))
+            store.apply(hook("PostToolUse", agent: i % 2 == 0 ? nil : "a\(i)", tool: "t\(i)"))
         }
-        #expect(store.states() == [.waiting])                      // a39 still waits
-        store.apply(hook("PermissionDenied", agent: "a39"))
+        #expect(store.states() == [.waiting])                      // t39 still waits
+        store.apply(hook("PermissionDenied", agent: "a39", tool: "t39"))
         #expect(store.states() == [.working])
     }
 
@@ -142,7 +176,7 @@ private func tempStore() -> AgentSessionStore {
         store.apply(hook("UserPromptSubmit", "a"))
         store.apply(hook("Stop", "b"))
         #expect(AgentState.aggregate(store.states()) == .working)
-        store.apply(hook("PermissionRequest", "b"))
+        store.apply(hook("PermissionRequest", "b", tool: "t"))
         #expect(AgentState.aggregate(store.states()) == .waiting)
         store.apply(hook("SessionEnd", "b"))
         #expect(store.states() == [.working])

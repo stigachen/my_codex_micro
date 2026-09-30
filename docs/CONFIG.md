@@ -334,6 +334,7 @@ MicroKeys.exe --uninstall                                            # Windows
     "UserPromptSubmit":   [{ "hooks": [{ "type": "command", "command": "/Applications/MicroKeys.app/Contents/MacOS/MicroKeys --claude-hook", "timeout": 5 }] }],
     "PostToolUse":        [ …同上… ],
     "PostToolUseFailure": [ …同上… ],
+    "PostToolBatch":      [ …同上… ],
     "PermissionRequest":  [ …同上… ],
     "PermissionDenied":   [ …同上… ],
     "Notification":       [ …同上… ],
@@ -360,8 +361,9 @@ MicroKeys.exe --uninstall                                            # Windows
 
 * 按 Esc 打断一轮时 Claude Code 不触发任何 hook，蓝灯会停留到大约一分钟后的「等待输入」通知，或你下一次提问；
   最多 15 分钟后当作空闲处理。
-* 子代理（包括后台子代理）各自的等待分开记录：子代理的工具跑完不会清掉主线程还没处理的权限确认，反之亦然。
-* 在权限对话框里拒绝后，如果 Claude Code 没有发出 `PermissionDenied`，琥珀色会保持到这一轮结束或你下一次提问。
+* 每个权限请求按它所属的那次工具调用单独记录，只有这次调用执行完或被拒绝才算答复。Claude Code 会并行调用工具
+  （同一线程里，以及子代理之间），另一个工具跑完不会清掉还开着的权限对话框。
+* 在权限对话框里拒绝后，如果 Claude Code 没有发出 `PermissionDenied`，琥珀色会保持到这一批工具结束、这一轮结束或你下一次提问。
 * 因 API 错误（限流、认证失败等）结束的一轮按「做完了」显示。
 * 会话没来得及发出 `SessionEnd` 就结束（比如进程被杀），3 小时后自动忽略。
 * ChatGPT 桌面端也用这组状态灯，两者同时用会互相覆盖。
