@@ -38,17 +38,14 @@ public struct ClaudeHookInput: Equatable {
     /// `tool_name` and `tool_input` - so this is what pairs a permission
     /// request with the `PostToolUse` that answers it.
     public var toolCall: String?
-    /// `PostToolBatch`: the fingerprints of every call in the batch.
-    public var batchToolCalls: [String]
 
     public init(event: String, sessionID: String, notificationType: String? = nil, agentID: String? = nil,
-                toolCall: String? = nil, batchToolCalls: [String] = []) {
+                toolCall: String? = nil) {
         self.event = event
         self.sessionID = sessionID
         self.notificationType = notificationType
         self.agentID = agentID
         self.toolCall = toolCall
-        self.batchToolCalls = batchToolCalls
     }
 
     /// A stable digest of a call's tool name and arguments (sorted-key JSON),
@@ -70,10 +67,9 @@ public struct ClaudeHookInput: Equatable {
             guard let value = object[key] as? String, !value.isEmpty else { return nil }
             return value
         }
-        let batch = (object["tool_calls"] as? [[String: Any]])?.compactMap(fingerprint) ?? []
         return ClaudeHookInput(event: event, sessionID: nonEmpty("session_id") ?? "unknown",
                                notificationType: nonEmpty("notification_type"), agentID: nonEmpty("agent_id"),
-                               toolCall: fingerprint(object), batchToolCalls: batch)
+                               toolCall: fingerprint(object))
     }
 
     public enum Action: Equatable {
@@ -84,8 +80,8 @@ public struct ClaudeHookInput: Equatable {
         /// A tool call ran (or auto mode denied it): working, and a permission
         /// wait for that same call is answered. Nothing else is.
         case work
-        /// A parallel batch resolved: working, and every wait of this agent's
-        /// batch is over, including ones no tool event could be matched to.
+        /// A batch of tool calls resolved: working, and every wait of this
+        /// agent is over, including ones no tool event could be matched to.
         case batchDone
         /// A tool call is blocked on a permission decision.
         case awaitPermission
@@ -199,14 +195,14 @@ public struct AgentSessionStore {
             // come after SessionStart or UserPromptSubmit anyway.
             guard var record = old ?? ([.begin, .prompt, .work, .batchDone, .awaitPermission, .promptOpen, .awaitInput, .answered, .finish].contains(action)
                 ? Record(state: .idle, waits: nil, ts: 0) : nil) else { return }
-            var waits = Set(record.waits ?? [])
+            // One entry per open dialog: "permission:<agent>:<call fingerprint>"
+            // ("?" when unpaired), and "input:<agent>". A list, not a set: two
+            // agents - or one agent twice in a batch - can make the very same
+            // call, and each dialog needs its own answer. A fingerprint names
+            // a call's content, not the call, so it only counts within its agent.
+            var waits = record.waits ?? []
             let agent = input.agentKey
-            // "permission:<agent>:<call fingerprint>" ("?" when unpaired),
-            // "input:<agent>".
             let permissionPrefix = "permission:\(agent):"
-            func answer(call id: String) {
-                waits = waits.filter { !($0.hasPrefix("permission:") && $0.hasSuffix(":" + id)) }
-            }
             switch action {
             case .begin:
                 if old != nil { return }
@@ -215,31 +211,34 @@ public struct AgentSessionStore {
                 waits.removeAll()
             case .work:
                 record.state = .working
-                if let call = input.toolCall { answer(call: call) }
+                if let call = input.toolCall, let i = waits.firstIndex(of: permissionPrefix + call) {
+                    waits.remove(at: i)
+                }
             case .batchDone:
+                // An agent runs one batch at a time, so every dialog it still
+                // has open belonged to this batch, paired or not.
                 record.state = .working
-                input.batchToolCalls.forEach(answer(call:))
-                waits = waits.filter { !$0.hasPrefix(permissionPrefix) && $0 != "input:\(agent)" }
+                waits.removeAll { $0.hasPrefix(permissionPrefix) || $0 == "input:\(agent)" }
             case .awaitPermission:
-                waits.insert(permissionPrefix + (input.toolCall ?? "?"))
+                waits.append(permissionPrefix + (input.toolCall ?? "?"))
             case .promptOpen:
                 if waits.contains(where: { $0.hasPrefix(permissionPrefix) }) { return }
-                waits.insert(permissionPrefix + "?")
+                waits.append(permissionPrefix + "?")
             case .awaitInput:
-                waits.insert("input:\(agent)")
+                if !waits.contains("input:\(agent)") { waits.append("input:\(agent)") }
             case .answered:
                 record.state = .working
-                waits.remove("input:\(agent)")
+                waits.removeAll { $0 == "input:\(agent)" }
             case .finish:
                 record.state = .done
-                waits = waits.filter { !$0.hasPrefix("permission:main:") && $0 != "input:main" }
+                waits.removeAll { $0.hasPrefix("permission:main:") || $0 == "input:main" }
             case .settle:
                 guard record.state == .working else { return }
                 record.state = .idle
             case .end, .ignore:
                 return
             }
-            record.waits = waits.isEmpty ? nil : waits.sorted()
+            record.waits = waits.isEmpty ? nil : waits
             record.ts = now.timeIntervalSince1970
             if let data = try? JSONEncoder().encode(record) {
                 try? data.write(to: file, options: .atomic)

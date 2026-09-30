@@ -3,10 +3,11 @@ import Testing
 @testable import MicroKeysCore
 
 private func hook(_ event: String, _ session: String = "s1", type: String? = nil, agent: String? = nil,
-                  tool: String? = nil, batch: [String] = []) -> ClaudeHookInput {
-    ClaudeHookInput(event: event, sessionID: session, notificationType: type, agentID: agent,
-                    toolCall: tool, batchToolCalls: batch)
+                  tool: String? = nil) -> ClaudeHookInput {
+    ClaudeHookInput(event: event, sessionID: session, notificationType: type, agentID: agent, toolCall: tool)
 }
+
+private func payload(_ json: String) -> ClaudeHookInput { ClaudeHookInput.parse(Data(json.utf8))! }
 
 private func tempStore() -> AgentSessionStore {
     AgentSessionStore(directory: FileManager.default.temporaryDirectory
@@ -40,8 +41,7 @@ private func tempStore() -> AgentSessionStore {
         #expect(r.toolCall != nil)
         #expect(r.toolCall == d.toolCall)
         #expect(r.toolCall != o.toolCall)
-        #expect(b.batchToolCalls.count == 2)
-        #expect(b.batchToolCalls.contains(r.toolCall!))
+        #expect(b.action == .batchDone)
 
         let store = tempStore()
         defer { try? FileManager.default.removeItem(at: store.directory) }
@@ -125,6 +125,42 @@ private func tempStore() -> AgentSessionStore {
         #expect(store.states() == [.working])
     }
 
+    /// Review #14: a fingerprint names a call's content, not the call. The
+    /// main agent and a subagent can legitimately ask for the very same Bash
+    /// command; answering one must leave the other's dialog open.
+    @Test func sameCallInTwoAgentsIsTwoWaits() {
+        let request = #"{"session_id":"s","hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"npm test","description":"Run tests"}}"#
+        let subRequest = #"{"session_id":"s","hook_event_name":"PermissionRequest","agent_id":"bg-1","tool_name":"Bash","tool_input":{"command":"npm test","description":"Run tests"}}"#
+        let subDone = #"{"session_id":"s","hook_event_name":"PostToolUse","agent_id":"bg-1","tool_name":"Bash","tool_input":{"command":"npm test","description":"Run tests"},"tool_use_id":"toolu_9","tool_response":{}}"#
+        let subBatch = #"{"session_id":"s","hook_event_name":"PostToolBatch","agent_id":"bg-1","tool_calls":[{"tool_name":"Bash","tool_input":{"command":"npm test","description":"Run tests"},"tool_use_id":"toolu_9","tool_response":""}]}"#
+        let mainDone = #"{"session_id":"s","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"npm test","description":"Run tests"},"tool_use_id":"toolu_1","tool_response":{}}"#
+
+        for subAnswer in [subDone, subBatch] {
+            let store = tempStore()
+            defer { try? FileManager.default.removeItem(at: store.directory) }
+            store.apply(hook("UserPromptSubmit", "s"))
+            store.apply(payload(request))
+            store.apply(payload(subRequest))
+            store.apply(payload(subAnswer))                       // only bg-1's dialog is answered
+            #expect(store.states() == [.waiting])
+            store.apply(payload(mainDone))
+            #expect(store.states() == [.working])
+        }
+    }
+
+    /// The same agent asking twice for the same call in one batch: two dialogs.
+    @Test func sameCallTwiceInOneAgentIsTwoWaits() {
+        let store = tempStore()
+        defer { try? FileManager.default.removeItem(at: store.directory) }
+        store.apply(hook("UserPromptSubmit"))
+        store.apply(hook("PermissionRequest", tool: "bash"))
+        store.apply(hook("PermissionRequest", tool: "bash"))
+        store.apply(hook("PostToolUse", tool: "bash"))
+        #expect(store.states() == [.waiting])
+        store.apply(hook("PostToolUse", tool: "bash"))
+        #expect(store.states() == [.working])
+    }
+
     /// Review #14: a sandboxed command's network request fires no
     /// PermissionRequest; the permission_prompt notification is the only signal.
     @Test func sandboxNetworkPromptWaitsUntilTheBatchResolves() {
@@ -135,7 +171,7 @@ private func tempStore() -> AgentSessionStore {
         #expect(store.states() == [.waiting])
         store.apply(hook("PostToolUse", tool: "unrelated"))             // cannot tell it apart: keep waiting
         #expect(store.states() == [.waiting])
-        store.apply(hook("PostToolBatch", batch: ["bash"]))
+        store.apply(hook("PostToolBatch"))
         #expect(store.states() == [.working])
 
         // The same prompt after a Stop, and after your next prompt, is cleared too.
@@ -164,9 +200,9 @@ private func tempStore() -> AgentSessionStore {
         store.apply(hook("PermissionRequest", tool: "x"))                    // answered with edits, say
         store.apply(hook("PermissionRequest"))                               // no tool name at all
         store.apply(hook("PermissionRequest", agent: "bg-1", tool: "y"))
-        store.apply(hook("PostToolBatch", batch: ["x", "z"]))
-        #expect(store.states() == [.waiting])                                // bg-1's call is not in this batch
-        store.apply(hook("PostToolBatch", agent: "bg-1", batch: ["y"]))
+        store.apply(hook("PostToolBatch"))
+        #expect(store.states() == [.waiting])                                // bg-1's batch has not resolved
+        store.apply(hook("PostToolBatch", agent: "bg-1"))
         #expect(store.states() == [.working])
     }
 
