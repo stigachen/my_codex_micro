@@ -17,4 +17,12 @@ public static class PadName
         name = BluetoothSuffix.Replace(name, "");
         return name.Length == 0 ? null : name;
     }
+
+    /// <summary>A pad's name for display: its product name, or a generic one in
+    /// the current language. Chosen at display time, never stored, so switching
+    /// the language applies to a pad that is already connected.</summary>
+    public static string Label(string? name) => Label(name, L10n.Language);
+
+    public static string Label(string? name, Language language) =>
+        name ?? (language == Language.ZhHans ? "Work Louder 键盘" : "Work Louder pad");
 }

@@ -12,4 +12,14 @@ import Testing
         #expect(PadName.display("   ") == nil)
         #expect(PadName.display(nil) == nil)
     }
+
+    /// Review #15: a nameless pad stores nil, and the generic name is picked
+    /// in whatever language is current when it is shown.
+    @Test func genericNameFollowsTheLanguage() {
+        let stored = PadName.display("  ")
+        #expect(stored == nil)
+        #expect(PadName.label(stored, language: .zhHans) == "Work Louder 键盘")
+        #expect(PadName.label(stored, language: .en) == "Work Louder pad")
+        #expect(PadName.label("Creator Micro 2", language: .en) == "Creator Micro 2")
+    }
 }

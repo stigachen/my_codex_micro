@@ -30,8 +30,9 @@ internal sealed class PadMonitor : IDisposable
         public required HidStream Stream;
         public required Thread Reader;
         public required bool Bluetooth;
-        /// <summary>The product name, for the menu and the log.</summary>
-        public required string Name;
+        /// <summary>The product name for the menu and the log; null when the
+        /// device reports none (the display picks a generic name then).</summary>
+        public required string? Name;
         public volatile bool Stop;
     }
 
@@ -41,8 +42,9 @@ internal sealed class PadMonitor : IDisposable
     private PadState _state = PadState.Disconnected;
     private string _detail = "";
 
-    /// <summary>The connected pad's product name; empty when none is connected.</summary>
-    public string ActiveName { get; private set; } = "";
+    /// <summary>The connected pad's product name; null when none is connected
+    /// or it reports no name.</summary>
+    public string? ActiveName { get; private set; }
     private bool _disposed;
 
     public PadMonitor(SynchronizationContext ui)
@@ -105,7 +107,7 @@ internal sealed class PadMonitor : IDisposable
             return;
         }
         stream.ReadTimeout = Timeout.Infinite;
-        var entry = new Entry { Device = d, Stream = stream, Reader = null!, Bluetooth = Transport.IsBluetooth(d.DevicePath), Name = S.PadLabel(SafeProduct(d)) };
+        var entry = new Entry { Device = d, Stream = stream, Reader = null!, Bluetooth = Transport.IsBluetooth(d.DevicePath), Name = PadName.Display(SafeProduct(d)) };
         entry.Reader = new Thread(() => ReadLoop(entry)) { IsBackground = true, Name = "MicroKeys HID reader" };
         _entries[d.DevicePath] = entry;
         entry.Reader.Start();
@@ -150,7 +152,7 @@ internal sealed class PadMonitor : IDisposable
         _activePath = chosen?.Device.DevicePath;
         var newState = chosen is null ? (_state == PadState.OpenFailed ? PadState.OpenFailed : PadState.Disconnected) : PadState.Connected;
         var newDetail = chosen is null ? _detail : Transport.Label(chosen.Device.DevicePath);
-        var newName = chosen?.Name ?? "";
+        var newName = chosen?.Name;
         if (newState != _state || newDetail != _detail || newName != ActiveName)
         {
             _state = newState; _detail = newDetail; ActiveName = newName;

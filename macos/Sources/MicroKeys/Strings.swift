@@ -36,7 +36,7 @@ enum LanguagePreference: String, CaseIterable {
 
 /// Every user-facing string, in both languages.
 enum S {
-    case padConnected(String, String), padDisconnected, padOpenFailed(String)
+    case padConnected(String?, String), padDisconnected, padOpenFailed(String)
     case transportBluetooth
     case inputMonitoringOK, inputMonitoringMissing, accessibilityOK, accessibilityMissing
     case secureInputOff, secureInputOn(String), secureInputHolder(String, Int32), secureInputHolderUnknown
@@ -53,7 +53,7 @@ enum S {
     case problemInputMonitoring, problemAccessibility, problemConfig(String), problemDisconnected, problemNone
     case problemSecureInput(String)
     case logStarted(String), logSeeded(String), logSeedFailed(String), logLoaded(Int, String), logConfigError(String)
-    case logConnected(String, String), logDisconnected(String, String), logHIDOpenFailed(String), logNoPermission
+    case logConnected(String?, String), logDisconnected(String?, String), logHIDOpenFailed(String), logNoPermission
     case logPermissionGranted, logLoginItemFailed(String)
     case logSecureInputOn(String), logSecureInputOff
     case statusLight, statusLightNow(String, Int), copyHooks, copiedHooksTitle, copiedHooksBody
@@ -64,7 +64,7 @@ enum S {
     var text: String {
         let zh = L10n.language == .zhHans
         switch self {
-        case .padConnected(let n, let t): return zh ? "\(n)：已连接（\(t)）" : "\(n): connected (\(t))"
+        case .padConnected(let n, let t): return zh ? "\(PadName.label(n))：已连接（\(t)）" : "\(PadName.label(n)): connected (\(t))"
         case .padDisconnected: return zh ? "Work Louder 键盘：未连接（USB 或蓝牙均可）" : "Work Louder pad: not connected (USB or Bluetooth)"
         case .padOpenFailed(let r): return zh ? "Work Louder 键盘：打不开，\(r)" : "Work Louder pad: cannot open, \(r)"
         case .transportBluetooth: return zh ? "蓝牙" : "Bluetooth"
@@ -154,8 +154,8 @@ enum S {
         case .logSeedFailed(let e): return zh ? "写入示例配置失败：\(e)" : "Could not write example config: \(e)"
         case .logLoaded(let n, let d): return zh ? "配置已加载：\(n) 个绑定 \(d)" : "Config loaded: \(n) binding(s) \(d)"
         case .logConfigError(let e): return zh ? "配置错误：\(e)" : "Config error: \(e)"
-        case .logConnected(let n, let t): return zh ? "\(n) 已连接（\(t)）" : "\(n) connected (\(t))"
-        case .logDisconnected(let n, let t): return zh ? "\(n) 已断开（\(t)）" : "\(n) disconnected (\(t))"
+        case .logConnected(let n, let t): return zh ? "\(PadName.label(n)) 已连接（\(t)）" : "\(PadName.label(n)) connected (\(t))"
+        case .logDisconnected(let n, let t): return zh ? "\(PadName.label(n)) 已断开（\(t)）" : "\(PadName.label(n)) disconnected (\(t))"
         case .logHIDOpenFailed(let r): return zh ? "打开 HID 管理器失败：\(r)" : "IOHIDManager open failed: \(r)"
         case .logNoPermission: return zh ? "缺少「输入监控」权限" : "Input Monitoring permission missing"
         case .logPermissionGranted: return zh ? "输入监控权限已授予，重新打开设备" : "Input Monitoring granted, reopening the device"
@@ -188,11 +188,6 @@ enum S {
         case .logSendFailed(let e): return zh ? "向键盘发送状态失败：\(e)" : "Could not send the status to the pad: \(e)"
         }
     }
-}
-
-/// What to call a pad whose product string is unusable.
-func padLabel(_ product: String?) -> String {
-    PadName.display(product) ?? (L10n.language == .zhHans ? "Work Louder 键盘" : "Work Louder pad")
 }
 
 /// Human label for a transport string from IOKit.

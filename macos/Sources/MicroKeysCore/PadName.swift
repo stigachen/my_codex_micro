@@ -12,4 +12,11 @@ public enum PadName {
         }
         return name.isEmpty ? nil : name
     }
+
+    /// A pad's name for display: its product name, or a generic one in the
+    /// current language. Chosen at display time, never stored, so switching
+    /// the language applies to a pad that is already connected.
+    public static func label(_ name: String?, language: Language = L10n.language) -> String {
+        name ?? (language == .zhHans ? "Work Louder 键盘" : "Work Louder pad")
+    }
 }

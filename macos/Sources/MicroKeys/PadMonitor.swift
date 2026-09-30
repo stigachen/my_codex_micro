@@ -4,7 +4,7 @@ import MicroKeysCore
 
 enum PadStatus: Equatable {
     case disconnected
-    case connected(transport: String, name: String)
+    case connected(transport: String, name: String?)
     case openFailed(String)
 
     var isConnected: Bool {
@@ -41,14 +41,15 @@ final class PadMonitor {
     private final class Entry {
         let device: IOHIDDevice
         let transport: String
-        /// The product name, for the menu and the log.
-        let name: String
+        /// The product name for the menu and the log; nil when the device
+        /// reports none (the display picks a generic name then).
+        let name: String?
         var decoder = FrameDecoder()
         let buffer: UnsafeMutablePointer<UInt8>
         /// The status-light writer for this connection.
         let link: StatusLink
 
-        init(device: IOHIDDevice, transport: String, name: String, sendQueue: DispatchQueue) {
+        init(device: IOHIDDevice, transport: String, name: String?, sendQueue: DispatchQueue) {
             self.device = device
             self.transport = transport
             self.name = name
@@ -134,7 +135,7 @@ final class PadMonitor {
     private func deviceAdded(_ device: IOHIDDevice) {
         guard Self.isSupported(device) else { return }
         let transport = IOHIDDeviceGetProperty(device, kIOHIDTransportKey as CFString) as? String ?? "unknown"
-        let name = padLabel(IOHIDDeviceGetProperty(device, kIOHIDProductKey as CFString) as? String)
+        let name = PadName.display(IOHIDDeviceGetProperty(device, kIOHIDProductKey as CFString) as? String)
         let entry = Entry(device: device, transport: transport, name: name, sendQueue: sendQueue)
         entries[ObjectIdentifier(device)] = entry
         let context = Unmanaged.passUnretained(self).toOpaque()
