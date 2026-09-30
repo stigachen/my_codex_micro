@@ -39,6 +39,21 @@ private func report(_ json: String, prefixed: Bool = false, size: Int = 63) -> [
                 [.key(id: "ACT06", act: 1), .joystick(angle: 0.5, distance: 0.25)])
     }
 
+    /// With the Claude Code status light on, the pad answers every thstatus
+    /// on the same channel as key events (format captured from a Creator
+    /// Micro 2 on 0.6.2). The reply must not swallow or delay a key event.
+    @Test func statusLightRepliesDoNotDisturbKeys() {
+        var d = FrameDecoder()
+        let reply = #"{"result":{"ok":1},"id":3,"method":"v.oai.thstatus"}"#
+        #expect(d.feed(report(reply)) == [.other(method: "v.oai.thstatus")])
+
+        let json = reply + "\r\n" + #"{"m":"v.oai.hid","p":{"k":"ACT10","act":1}}"#
+        let body = Array((json + "\r\n").utf8)
+        let first = Array(body[..<40]), second = Array(body[40...])
+        #expect(d.feed([0x02, UInt8(first.count)] + first) == [])
+        #expect(d.feed([0x02, UInt8(second.count)] + second) == [.other(method: "v.oai.thstatus"), .key(id: "ACT10", act: 1)])
+    }
+
     @Test func garbageIsIgnored() {
         var d = FrameDecoder()
         #expect(d.feed([0x01, 0x00, 0x00]) == [])
