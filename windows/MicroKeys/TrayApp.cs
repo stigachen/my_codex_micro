@@ -76,7 +76,7 @@ internal sealed class TrayApp : ApplicationContext
         _menu.Items.Clear();
         Add(_padState switch
         {
-            PadState.Connected => S.PadConnected(_padDetail),
+            PadState.Connected => S.PadConnected(_pad.ActiveName, _padDetail),
             PadState.OpenFailed => S.PadOpenFailed(_padDetail),
             _ => S.PadDisconnected,
         }, enabled: false);

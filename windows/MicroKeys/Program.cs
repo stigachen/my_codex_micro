@@ -90,7 +90,7 @@ internal static class Program
             case "-h":
             case "/?":
                 Console.WriteLine(L10n.Pick($"""
-                    MicroKeys {Version} - 把 Codex Micro 的按键映射成系统快捷键
+                    MicroKeys {Version} - 把 Codex Micro / Creator Micro 2 的按键映射成系统快捷键
 
                     不带参数：以托盘应用运行。
                       --check-config [路径]           校验配置文件并列出绑定
@@ -102,7 +102,7 @@ internal static class Program
                       --version
                     环境变量 MICROKEYS_CONFIG 可指定配置文件路径（默认 %APPDATA%\MicroKeys\config.json）。
                     """, $"""
-                    MicroKeys {Version} - map Codex Micro keys to system shortcuts
+                    MicroKeys {Version} - map Codex Micro / Creator Micro 2 keys to system shortcuts
 
                     No arguments: run as the tray app.
                       --check-config [path]            validate the config and list bindings

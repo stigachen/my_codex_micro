@@ -148,6 +148,9 @@ MicroKeys --detect
 它会列出设备的 VID/PID、连接方式，以及报告描述符里有没有厂商通道（0xFF00）。有厂商通道就值得一试；
 按键后菜单里「最近按键」有显示，就是兼容的。
 
+映射只对 Codex 层（键码是 Codex 键码的键）有效。在官方 Input app 里自建的层发出的是普通按键，不经过 MicroKeys，
+那些键请直接在官方 app 里配置。详见 [docs/CONFIG.md 第 4 节](docs/CONFIG.md#只在-codex-层上有效)。
+
 ## 资源占用
 
 常驻程序，所以专门测过（Apple Silicon，macOS 26，release 构建）：
@@ -197,6 +200,7 @@ MicroKeys.exe --uninstall
 
 * Windows 版 2026-09-13 在一台 x64 机器上验证通过（USB 连接，语音键映射）；Arm64 版只经过交叉编译，未实测。
 * 摇杆与左下角触控板不可绑定。
+* 映射只在 Codex 层有效；在官方 Input app 里自建的层上的键不经过 MicroKeys（Claude Code 状态灯不受此限）。
 * 不支持媒体键（音量、播放）。想用旋钮调音量之类的系统功能，把它映射成一个空闲快捷键，再在 Raycast 等软件里把该快捷键指到对应动作。
 * macOS 上合成的方向键、Home/End/PageUp/PageDown、F 键不带真实键盘会附加的 fn / 小键盘标志位，因此按标志位比对热键的软件（已确认 Raycast）认不出它们，字母、数字、Escape 等键不受影响。临时办法：把热键改成字母或数字。待修。
 * 少数直接读底层 HID 的应用看不到合成按键。

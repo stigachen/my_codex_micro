@@ -141,6 +141,22 @@ To use the double-width key as two keys:
 
 The joystick and the touchpad cannot be bound: the joystick is analogue and the touchpad speaks plain HID keyboard, which MicroKeys does not read.
 
+### Only on the Codex layer
+
+These ids exist only on keys that carry **Codex keycodes**, which is the factory Codex layer. Only those keys report presses
+over the vendor channel, and that channel is what MicroKeys reads.
+
+A layer you create in Work Louder's Input app holds ordinary keycodes (letters, shortcuts, macros). The pad sends those straight
+to the system as normal keystrokes, nothing appears on the vendor channel, and MicroKeys never sees them: on such a layer
+"Last key" stops changing and `--dump-pad` reports 0 key events. The vendor app offers no way to put Codex keycodes on a layer you made.
+
+So:
+
+* to use MicroKeys mappings, stay on the Codex layer;
+* on your own layers, set the keys to the shortcut, macro or text you want right in the vendor app. The pad sends real keystrokes,
+  including held chords, with no MicroKeys involved;
+* the Claude Code status light (section 11) is unaffected and works on any layer.
+
 ## 5. Shortcut syntax
 
 Join modifiers and at most one regular key with `+`. Case-insensitive; spaces around `+` are fine.
@@ -280,6 +296,7 @@ In Typeless, click "Add another" next to the Dictate shortcut and record the sam
 | "Last fired" updates too, but Raycast or another hotkey tool does not react; the menu shows "⚠️ Secure Input held by …" | Some app turned on macOS Secure Input and never turned it off. It is the anti-keylogger mode the system enters while the cursor is in a password field; it normally ends when you leave the field. While it is on, MicroKeys still sends the keys, but tools that listen for keyboard events never see them. The menu line names the holder (app name and PID); click it for the steps: switch to that app and press Esc, quit and reopen it, or lock and unlock the screen. From Terminal, `ioreg -l -d 1 -w 0 \| grep SecureInput` shows the same thing; `kCGSSessionSecureInputPID` is the holder |
 | "Last key" updates but the target app does nothing | First make sure `options.key_interval_ms` is not 0 (Typeless needs ≥ 30). Then check Accessibility: System Settings → Privacy & Security → Accessibility. Still stuck: compare real vs synthetic events with `--dump-events`, section 8 |
 | "Last key" never changes | The pad is not connected, or Input Monitoring is missing. USB and Bluetooth both work; with both connected USB wins |
+| Mappings stop working after switching to a layer you made | Expected: that layer's keys carry ordinary keycodes and never reach MicroKeys. Configure them in the vendor Input app; see "Only on the Codex layer" in section 4 |
 | Edits do not take effect | Look for a "Config error" line in the menu, or click "Reload Config" |
 | Permissions have to be granted again after a rebuild | Ad-hoc signature. Sign with a fixed certificate (Developer ID or self-signed, see docs/SIGNING.md) and the grants survive rebuilds |
 | A modifier seems stuck after push-to-talk | MicroKeys releases everything it holds on disconnect, config reload and quit; if something still sticks, tap that modifier once |

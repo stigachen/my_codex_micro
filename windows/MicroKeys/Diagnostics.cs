@@ -61,8 +61,8 @@ internal static class EventDumper
             Console.Error.WriteLine(L10n.Pick("无法安装键盘钩子。", "Could not install the keyboard hook."));
             return 1;
         }
-        Console.WriteLine(L10n.Pick($"监听 {seconds} 秒。先在真实键盘上按一次快捷键，再按一次 Codex Micro 上映射的键，对比两组输出。",
-            $"Listening for {seconds} s. Press the shortcut on a real keyboard, then the mapped Codex Micro key, and compare."));
+        Console.WriteLine(L10n.Pick($"监听 {seconds} 秒。先在真实键盘上按一次快捷键，再按一次 Work Louder 键盘上映射的键，对比两组输出。",
+            $"Listening for {seconds} s. Press the shortcut on a real keyboard, then the mapped key on the Work Louder pad, and compare."));
         Console.WriteLine(L10n.Pick("真实按键 injected=no；MicroKeys 合成的按键 injected=yes。有的软件会忽略 injected 事件。",
             "Hardware keys show injected=no; keys MicroKeys synthesizes show injected=yes. Some apps ignore injected input."));
         var timer = new System.Windows.Forms.Timer { Interval = seconds * 1000 };

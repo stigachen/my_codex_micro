@@ -4,7 +4,7 @@ import MicroKeysCore
 
 enum PadStatus: Equatable {
     case disconnected
-    case connected(transport: String)
+    case connected(transport: String, name: String?)
     case openFailed(String)
 
     var isConnected: Bool {
@@ -41,14 +41,18 @@ final class PadMonitor {
     private final class Entry {
         let device: IOHIDDevice
         let transport: String
+        /// The product name for the menu and the log; nil when the device
+        /// reports none (the display picks a generic name then).
+        let name: String?
         var decoder = FrameDecoder()
         let buffer: UnsafeMutablePointer<UInt8>
         /// The status-light writer for this connection.
         let link: StatusLink
 
-        init(device: IOHIDDevice, transport: String, sendQueue: DispatchQueue) {
+        init(device: IOHIDDevice, transport: String, name: String?, sendQueue: DispatchQueue) {
             self.device = device
             self.transport = transport
+            self.name = name
             link = StatusLink(transport: transport, send: { frames, wait in
                 // Off the main thread: the pad drops bytes if frames arrive
                 // back to back, so each is followed by a 4 ms pause, and a
@@ -131,7 +135,8 @@ final class PadMonitor {
     private func deviceAdded(_ device: IOHIDDevice) {
         guard Self.isSupported(device) else { return }
         let transport = IOHIDDeviceGetProperty(device, kIOHIDTransportKey as CFString) as? String ?? "unknown"
-        let entry = Entry(device: device, transport: transport, sendQueue: sendQueue)
+        let name = PadName.display(IOHIDDeviceGetProperty(device, kIOHIDProductKey as CFString) as? String)
+        let entry = Entry(device: device, transport: transport, name: name, sendQueue: sendQueue)
         entries[ObjectIdentifier(device)] = entry
         let context = Unmanaged.passUnretained(self).toOpaque()
         IOHIDDeviceRegisterInputReportCallback(device, entry.buffer, Self.reportBufferSize, { context, _, sender, _, reportID, report, length in
@@ -140,13 +145,13 @@ final class PadMonitor {
             let device = Unmanaged<IOHIDDevice>.fromOpaque(sender).takeUnretainedValue()
             monitor.report(from: device, reportID: reportID, bytes: Array(UnsafeBufferPointer(start: report, count: length)))
         }, context)
-        Log.info(S.logConnected(transport).text)
+        Log.info(S.logConnected(name, transport).text)
         electActive()
     }
 
     private func deviceRemoved(_ device: IOHIDDevice) {
         if let entry = entries.removeValue(forKey: ObjectIdentifier(device)) {
-            Log.info(S.logDisconnected(entry.transport).text)
+            Log.info(S.logDisconnected(entry.name, entry.transport).text)
         }
         electActive()
     }
@@ -163,7 +168,7 @@ final class PadMonitor {
         }
         active = chosen?.key
         if let chosen {
-            status = .connected(transport: chosen.value.transport)
+            status = .connected(transport: chosen.value.transport, name: chosen.value.name)
         } else {
             status = .disconnected
         }

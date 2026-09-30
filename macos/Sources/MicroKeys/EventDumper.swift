@@ -39,8 +39,8 @@ enum EventDumper {
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        print(L10n.pick("监听 \(seconds) 秒。先在真实键盘上按一次快捷键，再按一次 Codex Micro 上映射的键，对比两组输出。",
-                        "Listening for \(seconds) s. Press the shortcut on a real keyboard, then the mapped Codex Micro key, and compare."))
+        print(L10n.pick("监听 \(seconds) 秒。先在真实键盘上按一次快捷键，再按一次 Work Louder 键盘上映射的键，对比两组输出。",
+                        "Listening for \(seconds) s. Press the shortcut on a real keyboard, then the mapped key on the Work Louder pad, and compare."))
         print(L10n.pick("真实按键 srcPid=0；如果合成按键的 srcPid 不是 0 或 kbdType 是 0，就是被目标应用当成合成输入忽略了。",
                         "Hardware keys have srcPid=0; a synthetic key with a non-zero srcPid or kbdType=0 is what apps ignore."))
         fflush(stdout)

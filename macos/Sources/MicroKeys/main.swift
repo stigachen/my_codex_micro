@@ -94,7 +94,7 @@ func runCLI(_ args: [String]) -> Int32? {
 
     case "--help", "-h":
         print(L10n.pick("""
-        MicroKeys \(version) - 把 Codex Micro 的按键映射成系统快捷键
+        MicroKeys \(version) - 把 Codex Micro / Creator Micro 2 的按键映射成系统快捷键
 
         不带参数：以菜单栏应用运行。
           --check-config [路径]           校验配置文件并列出绑定
@@ -108,7 +108,7 @@ func runCLI(_ args: [String]) -> Int32? {
           --version
         环境变量 MICROKEYS_CONFIG 可指定配置文件路径（默认 ~/.config/microkeys/config.json）。
         """, """
-        MicroKeys \(version) - map Codex Micro keys to system shortcuts
+        MicroKeys \(version) - map Codex Micro / Creator Micro 2 keys to system shortcuts
 
         No arguments: run as the menu bar app.
           --check-config [path]            validate the config and list bindings

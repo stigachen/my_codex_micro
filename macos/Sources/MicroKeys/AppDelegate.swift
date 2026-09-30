@@ -134,7 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.removeAllItems()
 
         switch padStatus {
-        case .connected(let transport): add(S.padConnected(transportLabel(transport)).text, enabled: false)
+        case .connected(let transport, let name): add(S.padConnected(name, transportLabel(transport)).text, enabled: false)
         case .disconnected: add(S.padDisconnected.text, enabled: false)
         case .openFailed(let reason): add(S.padOpenFailed(reason).text, enabled: false)
         }
