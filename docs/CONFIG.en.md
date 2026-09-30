@@ -199,7 +199,7 @@ Synthesizing keys needs no permission on Windows. The one limit: when MicroKeys 
 
 ## 6. Living alongside the ChatGPT / Codex desktop app
 
-MicroKeys opens the device in shared mode: it **does not** take the pad away from ChatGPT and never touches the lights.
+MicroKeys opens the device in shared mode: it **does not** take the pad away from ChatGPT and leaves the lights alone (unless you turn on the Claude Code status light, section 11).
 Both programs see every key press and act independently.
 
 That also means ChatGPT keeps doing whatever a key did before. With the factory layout ACT06–ACT12 are
@@ -295,3 +295,76 @@ MicroKeys.exe --uninstall                                            # Windows
 
 Lists what will be removed and asks for confirmation (`--yes` skips it): config, log, language preference, the launch-at-login entry, and any running instance.
 Then delete the program itself; on macOS also remove the two permission entries under System Settings → Privacy & Security. See the README's uninstall section.
+
+## 11. Claude Code status light
+
+macOS only. The ring around the pad follows Claude Code, so you can tell what it is doing without watching the terminal:
+
+| Claude Code | Ring |
+|---|---|
+| Waiting for you (permission dialog, MCP question) | amber, breathing |
+| Working | blue |
+| Turn finished | green |
+| No sessions, or all idle | back to your layer's own lighting |
+
+With several sessions open it shows the most urgent one. It works on **any layer**, including layers you built in the vendor app;
+on a layer with Agent Keys (such as the Codex layer) the six Agent Keys light up in the same colour too.
+
+### Turning it on
+
+1. Menu bar icon → check "Claude Code Status Light (ring)".
+2. Click "Copy Claude Code Hooks Config" below it and merge the clipboard into `~/.claude/settings.json`.
+   If the file already has a `"hooks"` block, merge event by event rather than overwriting it. The same block from Terminal:
+   ```sh
+   /Applications/MicroKeys.app/Contents/MacOS/MicroKeys --claude-hooks-config
+   ```
+3. It takes effect on save; running Claude Code sessions need no restart.
+
+The copied block looks like this (one line per event, all running the same command):
+
+```json
+{
+  "hooks": {
+    "SessionStart":       [{ "hooks": [{ "type": "command", "command": "/Applications/MicroKeys.app/Contents/MacOS/MicroKeys --claude-hook", "timeout": 5 }] }],
+    "UserPromptSubmit":   [{ "hooks": [{ "type": "command", "command": "/Applications/MicroKeys.app/Contents/MacOS/MicroKeys --claude-hook", "timeout": 5 }] }],
+    "PostToolUse":        [ …same… ],
+    "PostToolUseFailure": [ …same… ],
+    "PostToolBatch":      [ …same… ],
+    "PermissionRequest":  [ …same… ],
+    "PermissionDenied":   [ …same… ],
+    "Notification":       [ …same… ],
+    "Stop":               [ …same… ],
+    "StopFailure":        [ …same… ],
+    "SessionEnd":         [ …same… ]
+  }
+}
+```
+
+The "Now: …" line in the menu shows what the ring currently stands for and how many sessions are live, which confirms the hooks are working.
+
+### What it does and does not do
+
+* The hook only writes this session's state to a small file under `~/Library/Application Support/MicroKeys/claude-sessions/`.
+  It takes about 10 ms, always exits successfully so it can never slow down or break Claude Code, and never touches the pad.
+* The menu bar app reads those files and sends the pad exactly two kinds of message: `v.oai.thstatus` (the status-light colour),
+  and, before the first light after each connect, one `device.status` (a read-only query that finds which write framing this pad
+  and transport accept; a wrongly framed write is silently dropped by the pad). Both are runtime only,
+  **nothing is written to the pad's storage**: no layers, keys or lighting settings change, and the pad forgets the light after
+  a replug or a few quiet hours. The code has no path for sending anything else. The "write framing" line in the log records the result.
+* With the option unchecked nothing is sent at all; checked but with no session busy, nothing is sent either.
+  While a light is showing it is resent every 30 s, because the pad forgets it after a long silence.
+
+### Known limits
+
+* Pressing Esc to interrupt a turn fires no hook, so the ring stays blue until the "waiting for input" notification about a minute
+  later, or your next prompt; after 15 minutes it is treated as idle regardless.
+* Each permission request is tracked against its own tool call (tool name and arguments), and only that call running answers it.
+  Claude Code runs tools in parallel (within one thread and across subagents), so another tool finishing does not clear
+  a permission dialog that is still open.
+* A wait that cannot be matched to a call (arguments edited in the dialog, a sandboxed command's network request) stays until
+  that batch of tools resolves, the turn ends, or your next prompt.
+* Denying a permission dialog by hand fires no hook, so the ring likewise stays amber until one of those three.
+* A turn that ends on an API error (rate limit, authentication, …) shows as finished.
+* A session that ends without sending `SessionEnd` (say, a killed process) is ignored after 3 hours.
+* The ChatGPT desktop app drives the same status lights; running both at once, they overwrite each other.
+* Before deleting the app, remove these hooks from `settings.json`, or Claude Code will report hook errors; `--uninstall` reminds you.

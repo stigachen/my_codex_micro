@@ -35,6 +35,8 @@ enum PadDumper {
                 print("\(stamp()) key \(id)  \(verb)")
             case .joystick:
                 joystickSamples += 1  // continuous while moved; summarised at the end
+            case .reply(let method, let id):
+                print("\(stamp()) reply \(method) #\(id)")
             case .other(let method):
                 print("\(stamp()) other \(method)")
             }

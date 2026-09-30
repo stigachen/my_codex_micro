@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let store = ConfigStore()
     private lazy var mapper = Mapper(config: Config(), synthesizer: synthesizer)
     private let pad = PadMonitor()
+    private lazy var statusLight = StatusLightController(pad: pad)
 
     private var padStatus: PadStatus = .disconnected
     private var lastKey: String?
@@ -49,12 +50,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         pad.onStatus = { [weak self] status in
             guard let self else { return }
             self.padStatus = status
-            if !status.isConnected { self.mapper.releaseAll() }
+            if status.isConnected { self.statusLight.padConnected() } else { self.mapper.releaseAll() }
             self.refreshIcon()
         }
 
         ensurePermissions()
         pad.start()
+        statusLight.startIfEnabled()
 
         // Poll the two grants: TCC has no change notification, and Input
         // Monitoring needs the HID manager re-opened once it turns green.
@@ -74,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         mapper.releaseAll()
+        statusLight.shutdown()
         pad.stop()
     }
 
@@ -168,6 +171,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         add(S.lastFire(lastFire ?? S.noFireYet.text).text, enabled: false)
         menu.addItem(.separator())
 
+        add(S.statusLight.text, action: #selector(toggleStatusLight)).state = statusLight.isEnabled ? .on : .off
+        if statusLight.isEnabled {
+            add(S.statusLightNow(S.agentState(statusLight.shown).text, statusLight.sessionCount).text, enabled: false)
+            add(S.copyHooks.text, action: #selector(copyHooksConfig))
+        }
+        menu.addItem(.separator())
+
         add(S.openConfig.text, action: #selector(openConfig), key: ",")
         add(S.reloadConfig.text, action: #selector(reloadConfig), key: "r")
         add(S.openDocs.text, action: #selector(openDocs))
@@ -236,6 +246,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         alert.addButton(withTitle: S.secureInputOK.text)
         alert.addButton(withTitle: S.secureInputActivityMonitor.text)
         if alert.runModal() == .alertSecondButtonReturn { SecureInput.openActivityMonitor() }
+    }
+
+    @objc private func toggleStatusLight() { statusLight.isEnabled.toggle() }
+
+    @objc private func copyHooksConfig() {
+        let snippet = ClaudeHooks.settingsSnippet(executable: Bundle.main.executablePath ?? CommandLine.arguments[0])
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(snippet, forType: .string)
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = S.copiedHooksTitle.text
+        alert.informativeText = S.copiedHooksBody.text
+        alert.runModal()
     }
 
     @objc private func openConfig() {

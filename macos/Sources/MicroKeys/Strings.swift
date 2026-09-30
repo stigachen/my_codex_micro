@@ -56,6 +56,10 @@ enum S {
     case logConnected(String), logDisconnected(String), logHIDOpenFailed(String), logNoPermission
     case logPermissionGranted, logLoginItemFailed(String)
     case logSecureInputOn(String), logSecureInputOff
+    case statusLight, statusLightNow(String, Int), copyHooks, copiedHooksTitle, copiedHooksBody
+    case agentState(AgentState?)
+    case logStatusLightOn, logStatusLightOff, logStatusLight(String), logSendFailed(String)
+    case logLinkReady(String), logLinkUnverified(String)
 
     var text: String {
         let zh = L10n.language == .zhHans
@@ -158,6 +162,30 @@ enum S {
         case .logLoginItemFailed(let e): return zh ? "切换开机自启失败：\(e)" : "Launch at Login toggle failed: \(e)"
         case .logSecureInputOn(let h): return zh ? "安全输入已开启，占用者：\(h)" : "Secure Input on, held by \(h)"
         case .logSecureInputOff: return zh ? "安全输入已关闭" : "Secure Input off"
+        case .statusLight: return zh ? "Claude Code 状态灯（外圈灯带）" : "Claude Code Status Light (ring)"
+        case .statusLightNow(let s, let n): return zh
+            ? "    当前：\(s)（\(n) 个会话）"
+            : "    Now: \(s) (\(n) session\(n == 1 ? "" : "s"))"
+        case .copyHooks: return zh ? "    复制 Claude Code hooks 配置" : "    Copy Claude Code Hooks Config"
+        case .copiedHooksTitle: return zh ? "已复制 hooks 配置" : "Hooks config copied"
+        case .copiedHooksBody: return zh
+            ? "把剪贴板里的 \"hooks\" 合并进 ~/.claude/settings.json（已有 hooks 时不要整段覆盖）。保存后立即生效，不用重启 Claude Code。"
+            : "Merge the \"hooks\" block on the clipboard into ~/.claude/settings.json (do not overwrite hooks you already have). It takes effect on save; no need to restart Claude Code."
+        case .agentState(let state):
+            switch state {
+            case .waiting: return zh ? "等你确认" : "waiting for you"
+            case .working: return zh ? "工作中" : "working"
+            case .done: return zh ? "已完成" : "done"
+            case .idle, nil: return zh ? "无" : "nothing"
+            }
+        case .logStatusLightOn: return zh ? "Claude Code 状态灯已开启" : "Claude Code status light on"
+        case .logStatusLightOff: return zh ? "Claude Code 状态灯已关闭" : "Claude Code status light off"
+        case .logStatusLight(let s): return zh ? "状态灯 → \(s)" : "Status light → \(s)"
+        case .logLinkReady(let f): return zh ? "键盘应答了状态查询，写入格式：\(f)" : "Pad answered the status query; write framing: \(f)"
+        case .logLinkUnverified(let f): return zh
+            ? "键盘对各种写入格式都没有应答，先按 \(f) 发送（未验证，状态灯可能不亮）"
+            : "Pad answered none of the write framings; sending as \(f), unverified (the light may stay dark)"
+        case .logSendFailed(let e): return zh ? "向键盘发送状态失败：\(e)" : "Could not send the status to the pad: \(e)"
         }
     }
 }

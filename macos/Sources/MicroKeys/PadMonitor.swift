@@ -43,10 +43,34 @@ final class PadMonitor {
         let transport: String
         var decoder = FrameDecoder()
         let buffer: UnsafeMutablePointer<UInt8>
+        /// The status-light writer for this connection.
+        let link: StatusLink
 
-        init(device: IOHIDDevice, transport: String) {
+        init(device: IOHIDDevice, transport: String, sendQueue: DispatchQueue) {
             self.device = device
             self.transport = transport
+            link = StatusLink(transport: transport, send: { frames, wait in
+                // Off the main thread: the pad drops bytes if frames arrive
+                // back to back, so each is followed by a 4 ms pause, and a
+                // dozen of those should not stall key handling.
+                let work = {
+                    for frame in frames {
+                        let result = IOHIDDeviceSetReport(device, kIOHIDReportTypeOutput, CFIndex(FrameDecoder.reportID), frame, frame.count)
+                        if result != kIOReturnSuccess {
+                            Log.warn(S.logSendFailed(String(format: "0x%08X", result)).text)
+                            return
+                        }
+                        usleep(4000)
+                    }
+                }
+                if wait { sendQueue.sync(execute: work) } else { sendQueue.async(execute: work) }
+            }, schedule: { delay, work in
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+            })
+            link.onReady = { framing, verified in
+                if verified { Log.info(S.logLinkReady(framing.description).text) }
+                else { Log.warn(S.logLinkUnverified(framing.description).text) }
+            }
             buffer = .allocate(capacity: PadMonitor.reportBufferSize)
             buffer.initialize(repeating: 0, count: PadMonitor.reportBufferSize)
         }
@@ -57,6 +81,7 @@ final class PadMonitor {
     private var manager: IOHIDManager?
     private var entries: [ObjectIdentifier: Entry] = [:]
     private var active: ObjectIdentifier?
+    private let sendQueue = DispatchQueue(label: "microkeys.pad.send")
 
     /// Start (or restart) watching. Safe to call again after a permission grant.
     func start() {
@@ -106,7 +131,7 @@ final class PadMonitor {
     private func deviceAdded(_ device: IOHIDDevice) {
         guard Self.isSupported(device) else { return }
         let transport = IOHIDDeviceGetProperty(device, kIOHIDTransportKey as CFString) as? String ?? "unknown"
-        let entry = Entry(device: device, transport: transport)
+        let entry = Entry(device: device, transport: transport, sendQueue: sendQueue)
         entries[ObjectIdentifier(device)] = entry
         let context = Unmanaged.passUnretained(self).toOpaque()
         IOHIDDeviceRegisterInputReportCallback(device, entry.buffer, Self.reportBufferSize, { context, _, sender, _, reportID, report, length in
@@ -130,6 +155,12 @@ final class PadMonitor {
     private func electActive() {
         let usb = entries.first { $0.value.transport == "USB" }
         let chosen = usb ?? entries.first
+        if chosen?.key != active, let old = active.flatMap({ entries[$0] }) {
+            // Writes now go to the new link (the app resends its state on
+            // connect). A probe still running on the old one must not finish
+            // later and flush a status that has since changed or been turned off.
+            old.link.retire()
+        }
         active = chosen?.key
         if let chosen {
             status = .connected(transport: chosen.value.transport)
@@ -138,10 +169,25 @@ final class PadMonitor {
         }
     }
 
+    /// Show a Claude Code state on the pad's status lights (nil = hand them back).
+    ///
+    /// This and its framing probe are the only things MicroKeys ever writes to
+    /// the pad, and they take a state rather than bytes on purpose: there is no
+    /// path for any other message, so nothing can reach the pad's flash. See
+    /// `PadCommand` and `StatusLink`. `wait` blocks until sent (for app quit).
+    /// Returns false when no pad is connected.
+    @discardableResult
+    func showStatus(_ state: AgentState?, wait: Bool = false) -> Bool {
+        guard let active, let entry = entries[active] else { return false }
+        entry.link.show(state, wait: wait)
+        return true
+    }
+
     private func report(from device: IOHIDDevice, reportID: UInt32, bytes: [UInt8]) {
         let id = ObjectIdentifier(device)
         guard id == active, reportID == UInt32(FrameDecoder.reportID), let entry = entries[id] else { return }
         for event in entry.decoder.feed(bytes) {
+            entry.link.received(event)
             onEvent?(event)
         }
     }

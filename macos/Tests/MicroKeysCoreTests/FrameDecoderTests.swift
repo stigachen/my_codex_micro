@@ -39,6 +39,31 @@ private func report(_ json: String, prefixed: Bool = false, size: Int = 63) -> [
                 [.key(id: "ACT06", act: 1), .joystick(angle: 0.5, distance: 0.25)])
     }
 
+    /// With the Claude Code status light on, the pad answers every thstatus
+    /// on the same channel as key events (format captured from a Creator
+    /// Micro 2 on 0.6.2). The reply must not swallow or delay a key event.
+    @Test func statusLightRepliesDoNotDisturbKeys() {
+        var d = FrameDecoder()
+        let reply = #"{"result":{"ok":1},"id":3,"method":"v.oai.thstatus"}"#
+        #expect(d.feed(report(reply)) == [.reply(method: "v.oai.thstatus", id: 3)])
+
+        let json = reply + "\r\n" + #"{"m":"v.oai.hid","p":{"k":"ACT10","act":1}}"#
+        let body = Array((json + "\r\n").utf8)
+        let first = Array(body[..<40]), second = Array(body[40...])
+        #expect(d.feed([0x02, UInt8(first.count)] + first) == [])
+        #expect(d.feed([0x02, UInt8(second.count)] + second) == [.reply(method: "v.oai.thstatus", id: 3), .key(id: "ACT10", act: 1)])
+    }
+
+    @Test func repliesCarryTheirID() {
+        var d = FrameDecoder()
+        #expect(d.feed(report(#"{"result":{"version":"0.6.2","battery":99},"id":412345,"method":"device.status"}"#))
+                == [.reply(method: "device.status", id: 412345)])
+        #expect(d.feed(report(#"{"error":{"code":404,"message":"Method not found"},"id":9}"#))
+                == [.reply(method: "", id: 9)])
+        // A notification is not a reply, even with an id-like field inside params.
+        #expect(d.feed(report(#"{"method":"host.focused_app","params":{"id":5}}"#)) == [.other(method: "host.focused_app")])
+    }
+
     @Test func garbageIsIgnored() {
         var d = FrameDecoder()
         #expect(d.feed([0x01, 0x00, 0x00]) == [])
