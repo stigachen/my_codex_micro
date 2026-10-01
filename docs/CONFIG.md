@@ -319,9 +319,9 @@ MicroKeys.exe --uninstall                                            # Windows
 
 ## 11. Claude Code 状态灯
 
-仅 macOS。让键盘外圈的灯带跟着 Claude Code 的状态变，不用盯着终端也知道它在干什么：
+仅 macOS。让键盘外圈氛围灯（underglow）跟着 Claude Code 的状态变，不用盯着终端也知道它在干什么：
 
-| Claude Code | 灯带 |
+| Claude Code | 氛围灯 |
 |---|---|
 | 等你确认（权限对话框、MCP 提问） | 琥珀色，呼吸 |
 | 工作中 | 蓝色 |
@@ -333,7 +333,7 @@ MicroKeys.exe --uninstall                                            # Windows
 
 ### 开启
 
-1. 菜单栏图标 → 勾上「Claude Code 状态灯（外圈灯带）」。
+1. 菜单栏图标 → 勾上「Claude Code 状态灯（外圈氛围灯）」。
 2. 点它下面的「复制 Claude Code hooks 配置」，把剪贴板里的内容合并进 `~/.claude/settings.json`。
    文件里已经有 `"hooks"` 时逐个事件合并，不要整段覆盖。也可以在终端打印同一段：
    ```sh
@@ -361,7 +361,7 @@ MicroKeys.exe --uninstall                                            # Windows
 }
 ```
 
-菜单里「当前：…」一行显示灯带此刻代表的状态和会话数，可以用来确认 hooks 生效了。
+菜单里「当前：…」一行显示氛围灯此刻代表的状态和会话数，可以用来确认 hooks 生效了。
 
 ### 它做了什么，没做什么
 
