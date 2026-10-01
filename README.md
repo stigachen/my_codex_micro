@@ -5,7 +5,7 @@
 
 典型用法：语音键 → 按住 `右Ctrl + 右Shift`，给 Wispr Flow / Superwhisper 这类按住说话的听写软件用。
 
-另有一个可选的 **Claude Code 状态灯**（macOS）：键盘外圈灯带随 Claude Code 变色，等你确认时琥珀色呼吸、
+另有一个可选的 **Claude Code 状态灯**（macOS）：键盘外圈氛围灯随 Claude Code 变色，等你确认时琥珀色呼吸、
 工作中蓝色、做完绿色，在任何层上都有效。见 [docs/CONFIG.md 第 11 节](docs/CONFIG.md#11-claude-code-状态灯)。
 
 ```json

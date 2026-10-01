@@ -315,9 +315,9 @@ Then delete the program itself; on macOS also remove the two permission entries 
 
 ## 11. Claude Code status light
 
-macOS only. The ring around the pad follows Claude Code, so you can tell what it is doing without watching the terminal:
+macOS only. The pad's underglow follows Claude Code, so you can tell what it is doing without watching the terminal:
 
-| Claude Code | Ring |
+| Claude Code | Underglow |
 |---|---|
 | Waiting for you (permission dialog, MCP question) | amber, breathing |
 | Working | blue |
@@ -329,7 +329,7 @@ on a layer with Agent Keys (such as the Codex layer) the six Agent Keys light up
 
 ### Turning it on
 
-1. Menu bar icon → check "Claude Code Status Light (ring)".
+1. Menu bar icon → check "Claude Code Status Light (underglow)".
 2. Click "Copy Claude Code Hooks Config" below it and merge the clipboard into `~/.claude/settings.json`.
    If the file already has a `"hooks"` block, merge event by event rather than overwriting it. The same block from Terminal:
    ```sh
@@ -357,7 +357,7 @@ The copied block looks like this (one line per event, all running the same comma
 }
 ```
 
-The "Now: …" line in the menu shows what the ring currently stands for and how many sessions are live, which confirms the hooks are working.
+The "Now: …" line in the menu shows what the underglow currently stands for and how many sessions are live, which confirms the hooks are working.
 
 ### What it does and does not do
 
@@ -373,14 +373,14 @@ The "Now: …" line in the menu shows what the ring currently stands for and how
 
 ### Known limits
 
-* Pressing Esc to interrupt a turn fires no hook, so the ring stays blue until the "waiting for input" notification about a minute
+* Pressing Esc to interrupt a turn fires no hook, so the underglow stays blue until the "waiting for input" notification about a minute
   later, or your next prompt; after 15 minutes it is treated as idle regardless.
 * Each permission request is tracked against its own tool call (tool name and arguments), and only that call running answers it.
   Claude Code runs tools in parallel (within one thread and across subagents), so another tool finishing does not clear
   a permission dialog that is still open.
 * A wait that cannot be matched to a call (arguments edited in the dialog, a sandboxed command's network request) stays until
   that batch of tools resolves, the turn ends, or your next prompt.
-* Denying a permission dialog by hand fires no hook, so the ring likewise stays amber until one of those three.
+* Denying a permission dialog by hand fires no hook, so the underglow likewise stays amber until one of those three.
 * A turn that ends on an API error (rate limit, authentication, …) shows as finished.
 * A session that ends without sending `SessionEnd` (say, a killed process) is ignored after 3 hours.
 * The ChatGPT desktop app drives the same status lights; running both at once, they overwrite each other.

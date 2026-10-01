@@ -162,7 +162,7 @@ enum S {
         case .logLoginItemFailed(let e): return zh ? "切换开机自启失败：\(e)" : "Launch at Login toggle failed: \(e)"
         case .logSecureInputOn(let h): return zh ? "安全输入已开启，占用者：\(h)" : "Secure Input on, held by \(h)"
         case .logSecureInputOff: return zh ? "安全输入已关闭" : "Secure Input off"
-        case .statusLight: return zh ? "Claude Code 状态灯（外圈灯带）" : "Claude Code Status Light (ring)"
+        case .statusLight: return zh ? "Claude Code 状态灯（外圈氛围灯）" : "Claude Code Status Light (underglow)"
         case .statusLightNow(let s, let n): return zh
             ? "    当前：\(s)（\(n) 个会话）"
             : "    Now: \(s) (\(n) session\(n == 1 ? "" : "s"))"
