@@ -245,7 +245,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         alert.informativeText = S.secureInputBody(secureInputHolderLabel()).text
         alert.addButton(withTitle: S.secureInputOK.text)
         alert.addButton(withTitle: S.secureInputActivityMonitor.text)
+        makeInformativeTextSelectable(alert)
         if alert.runModal() == .alertSecondButtonReturn { SecureInput.openActivityMonitor() }
+    }
+
+    /// NSAlert's body label is not selectable; flip it so the text can be copied.
+    private func makeInformativeTextSelectable(_ alert: NSAlert) {
+        alert.layout()
+        func walk(_ v: NSView) {
+            if let f = v as? NSTextField, f.stringValue == alert.informativeText { f.isSelectable = true }
+            v.subviews.forEach(walk)
+        }
+        if let root = alert.window.contentView { walk(root) }
     }
 
     @objc private func toggleStatusLight() { statusLight.isEnabled.toggle() }
