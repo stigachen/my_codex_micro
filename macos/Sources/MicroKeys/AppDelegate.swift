@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         LanguagePreference.apply()
         Log.info(S.logStarted(store.url.path).text)
         buildStatusItem()
+        installEditMenu()
 
         store.onChange = { [weak self] config, error in
             guard let self else { return }
@@ -245,7 +246,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         alert.informativeText = S.secureInputBody(secureInputHolderLabel()).text
         alert.addButton(withTitle: S.secureInputOK.text)
         alert.addButton(withTitle: S.secureInputActivityMonitor.text)
+        makeInformativeTextSelectable(alert)
         if alert.runModal() == .alertSecondButtonReturn { SecureInput.openActivityMonitor() }
+    }
+
+    /// An accessory app has no main menu, so ⌘C / ⌘A never reach a selected
+    /// text field. A main menu with Copy and Select All routes them through
+    /// the responder chain; it stays invisible because there is no menu bar.
+    private func installEditMenu() {
+        let edit = NSMenu(title: "Edit")
+        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        let editItem = NSMenuItem()
+        editItem.submenu = edit
+        let main = NSMenu()
+        main.addItem(NSMenuItem())   // slot 0 is the app menu
+        main.addItem(editItem)
+        NSApp.mainMenu = main
+    }
+
+    /// NSAlert's body label is not selectable; flip it so the text can be copied.
+    private func makeInformativeTextSelectable(_ alert: NSAlert) {
+        alert.layout()
+        func walk(_ v: NSView) {
+            if let f = v as? NSTextField, f.stringValue == alert.informativeText { f.isSelectable = true }
+            v.subviews.forEach(walk)
+        }
+        if let root = alert.window.contentView { walk(root) }
     }
 
     @objc private func toggleStatusLight() { statusLight.isEnabled.toggle() }
